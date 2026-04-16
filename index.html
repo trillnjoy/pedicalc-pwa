@@ -77,31 +77,37 @@
   </div>
   <div id="root"></div>
   
+  <!-- Babel Standalone: transpiles JSX → plain JS at runtime -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
   <script type="module">
     import React, { useState, useEffect, useRef } from 'https://esm.sh/react@18.2.0';
     import ReactDOM from 'https://esm.sh/react-dom@18.2.0/client';
-    
-    // The React component code will be injected here by the build script
-    // For now, we'll load it from the PediatricCalc.jsx
-    
+
     async function loadApp() {
       try {
-        // Load the component
+        // Load the JSX component source
         const response = await fetch('PediatricCalc.jsx');
         const code = await response.text();
-        
-        // Extract the component (everything after imports and before export)
+
+        // Strip import lines and the export default keyword
         const componentCode = code
           .replace(/^import.*?;?\n/gm, '')
           .replace(/export default /, '');
-        
-        // Create a function that returns the component
+
+        // CRITICAL: Transpile JSX → plain JS before passing to new Function()
+        // new Function() only accepts standard JS, not JSX syntax
+        const transpiled = Babel.transform(componentCode, {
+          presets: ['react']
+        }).code;
+
+        // Create a function that returns the App component
         const componentFn = new Function('React', 'useState', 'useEffect', 'useRef', `
           const { useState, useEffect, useRef } = React;
-          ${componentCode}
+          ${transpiled}
           return App;
         `);
-        
+
         const App = componentFn(React, useState, useEffect, useRef);
         
         // Hide loading screen

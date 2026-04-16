@@ -23,10 +23,12 @@ const COLORS = {
 };
 
 // ─── UTILITY FUNCTIONS ───────────────────────────────────────────────────────
-// Remove trailing zeros from numbers (safety: prevents confusion between 1.0 and 10)
+// Remove trailing zeros ONLY after decimal point (preserves 8000, removes from 12.50)
 const stripTrailingZeros = (num) => {
   if (typeof num === 'string') return num;
-  return parseFloat(num.toFixed(10).replace(/\.?0+$/, "")).toString();
+  const str = num.toFixed(10);
+  // Only strip zeros after decimal: 12.500 → 12.5, 8000.0 → 8000
+  return str.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
 };
 
 // ─── CALCULATOR DEFINITIONS ──────────────────────────────────────────────────
@@ -243,8 +245,14 @@ function ScoreRow({ label, options, value, onChange }) {
 }
 
 function NumberInput({ label, value, onChange, min, max, step = 1, unit }) {
-  // Remove trailing zeros for display
-  const displayValue = value === 0 ? '0' : parseFloat(value).toString();
+  // Strip trailing zeros ONLY after decimal point
+  // 400 stays 400, 12.50 becomes 12.5
+  const displayValue = (() => {
+    if (value === 0) return '0';
+    const str = value.toString();
+    // Only strip zeros after decimal point
+    return str.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+  })();
   
   return (
     <div style={{ marginBottom: 10 }}>
@@ -285,8 +293,10 @@ function NumberInput({ label, value, onChange, min, max, step = 1, unit }) {
 }
 
 function ResultBadge({ score, label, color, sublabel }) {
-  // Remove trailing zeros from numeric scores
-  const displayScore = typeof score === 'number' ? parseFloat(score).toString() : score;
+  // Strip trailing zeros ONLY after decimal point
+  const displayScore = typeof score === 'number' 
+    ? score.toString().replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
+    : score;
   
   return (
     <div style={{
@@ -633,13 +643,13 @@ function AcetaminophenCalc() {
           <div style={{marginTop:20,padding:"18px 20px",borderRadius:14,background:COLORS.card,border:`1.5px solid ${COLORS.border}`}}>
             <div style={{color:COLORS.textSub,fontSize:12,fontFamily:"'DM Mono',monospace",marginBottom:8}}>DOSE ASSESSMENT</div>
             <div style={{color:COLORS.text,fontSize:14,fontFamily:"'DM Mono',monospace",lineHeight:1.7}}>
-              <div>Total dose: <span style={{color:COLORS.accent,fontWeight:700}}>{(weight*dose).toFixed(0).replace(/\.?0+$/, "")} mg</span></div>
+              <div>Total dose: <span style={{color:COLORS.accent,fontWeight:700}}>{(weight*dose).toFixed(0)} mg</span></div>
               <div style={{marginTop:8,color:dose<150?COLORS.success:dose<200?COLORS.warning:COLORS.danger,fontSize:13,fontWeight:600}}>
                 {dose === 0 ? "▸ Enter dose to assess" : dose < 75 ? "▸ Non-toxic range (<75 mg/kg)" : dose < 150 ? "▸ Borderline toxic (75–150 mg/kg)" : dose < 200 ? "▸ Potentially toxic (150–200 mg/kg)" : "▸ Toxic — consider NAC"}
               </div>
               {dose > 0 && (
                 <div style={{marginTop:8,color:COLORS.textMuted,fontSize:12}}>
-                  NAC loading dose: <span style={{color:COLORS.accent,fontWeight:600}}>{nac_dose.toFixed(0).replace(/\.?0+$/, "")} mg IV</span> (150 mg/kg)
+                  NAC loading dose: <span style={{color:COLORS.accent,fontWeight:600}}>{nac_dose.toFixed(0)} mg IV</span> (150 mg/kg)
                 </div>
               )}
             </div>
@@ -661,7 +671,7 @@ function AcetaminophenCalc() {
               score={toxic() ? "TREAT WITH NAC" : "BELOW LINE"}
               label={toxic() ? "Above Treatment Line → Start NAC Protocol" : "Below Treatment Line — No Treatment Indicated"}
               color={toxic() ? COLORS.danger : COLORS.success}
-              sublabel={`Threshold at ${hours}h: ${rumackThreshold(hours).toFixed(1).replace(/\.?0+$/, "")} mcg/mL • Patient level: ${level} mcg/mL`}
+              sublabel={`Threshold at ${hours}h: ${rumackThreshold(hours).toFixed(1)} mcg/mL • Patient level: ${level} mcg/mL`}
             />
           )}
           
@@ -672,9 +682,9 @@ function AcetaminophenCalc() {
                 NAC (N-Acetylcysteine) Protocol
               </div>
               <div style={{color:COLORS.text,fontSize:12,fontFamily:"'DM Mono',monospace",lineHeight:1.6}}>
-                <div>• <strong>Loading:</strong> {nac_dose.toFixed(0).replace(/\.?0+$/, "")} mg IV over 1 hour</div>
-                <div>• <strong>2nd dose:</strong> {(weight * 50).toFixed(0).replace(/\.?0+$/, "")} mg IV over 4 hours</div>
-                <div>• <strong>3rd dose:</strong> {(weight * 100).toFixed(0).replace(/\.?0+$/, "")} mg IV over 16 hours</div>
+                <div>• <strong>Loading:</strong> {nac_dose.toFixed(0)} mg IV over 1 hour</div>
+                <div>• <strong>2nd dose:</strong> {(weight * 50).toFixed(0)} mg IV over 4 hours</div>
+                <div>• <strong>3rd dose:</strong> {(weight * 100).toFixed(0)} mg IV over 16 hours</div>
                 <div style={{marginTop:6,color:COLORS.danger,fontSize:11}}>
                   ⚠ Start NAC immediately — do not delay for level if ingestion &gt;150 mg/kg
                 </div>
@@ -1209,8 +1219,8 @@ function PECARNCalc() {
 function FluidCalc() {
   const [weight, setWeight] = useState(20);
   const ml_day = weight <= 10 ? weight * 100 : weight <= 20 ? 1000 + (weight-10)*50 : 1500 + (weight-20)*20;
-  const ml_hr = (ml_day / 24).toFixed(1).replace(/\.?0+$/, "");
-  const d5w = (ml_day * 0.05 / 1000).toFixed(1).replace(/\.?0+$/, "");
+  const ml_hr = (ml_day / 24).toFixed(1);
+  const d5w = (ml_day * 0.05 / 1000).toFixed(1);
   return (
     <div>
       <NumberInput label="Weight" value={weight} onChange={setWeight} min={0.5} max={100} step={0.5} unit="kg" />
@@ -1218,7 +1228,7 @@ function FluidCalc() {
         <div style={{color:COLORS.textMuted,fontSize:11,fontFamily:"'DM Mono',monospace",marginBottom:14}}>HOLLIDAY-SEGAR CALCULATION</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           {[
-            {label:"mL/day",value:ml_day.toFixed(0).replace(/\.?0+$/, "")},
+            {label:"mL/day",value:ml_day.toFixed(0)},
             {label:"mL/hr",value:ml_hr},
             {label:"Formula",value:weight<=10?"100×wt":weight<=20?"1000+50×(wt−10)":"1500+20×(wt−20)"},
             {label:"Dextrose 5%",value:`${d5w} g dextrose`}
@@ -1253,8 +1263,8 @@ function DoseCalc() {
     atropine:      { name:"Atropine (bradycardia)", dose:[0.02,0.02], unit:"mg/kg", max:"1 mg", freq:"PRN q5min", route:"IV/IO" },
   };
   const d = DRUGS[drug];
-  const low = (weight * d.dose[0]).toFixed(1).replace(/\.?0+$/, "");
-  const high = (weight * d.dose[1]).toFixed(1).replace(/\.?0+$/, "");
+  const low = (weight * d.dose[0]).toFixed(1);
+  const high = (weight * d.dose[1]).toFixed(1);
   return (
     <div>
       <NumberInput label="Weight" value={weight} onChange={setWeight} min={0.5} max={100} step={0.5} unit="kg" />
@@ -1299,13 +1309,13 @@ function U25GFRCalc() {
   
   // U25 Creatinine-based eGFR
   const k = sex === "male" ? 41.3 : 39.1;
-  const egfr_scr = (k * height / creatinine).toFixed(1).replace(/\.?0+$/, "");
+  const egfr_scr = (k * height / creatinine).toFixed(1);
   
   // U25 Cystatin-C based eGFR  
-  const egfr_cys = (70.69 * Math.pow(cystatin, -0.931)).toFixed(1).replace(/\.?0+$/, "");
+  const egfr_cys = (70.69 * Math.pow(cystatin, -0.931)).toFixed(1);
   
   // Combined U25 equation (when both available)
-  const egfr_combined = (39.8 * Math.pow(height / creatinine, 0.456) * Math.pow(1.8 / cystatin, 0.418) * Math.pow(30 / 18.5, 0.127)).toFixed(1).replace(/\.?0+$/, "");
+  const egfr_combined = (39.8 * Math.pow(height / creatinine, 0.456) * Math.pow(1.8 / cystatin, 0.418) * Math.pow(30 / 18.5, 0.127)).toFixed(1);
   
   const getStage = (gfr) => {
     const g = parseFloat(gfr);
@@ -1540,10 +1550,10 @@ function BurnsCalc() {
       <div style={{marginTop:16,padding:"20px",borderRadius:14,background:COLORS.card,border:`1.5px solid ${COLORS.border}`}}>
         <div style={{color:COLORS.textMuted,fontSize:11,fontFamily:"'DM Mono',monospace",marginBottom:12}}>PARKLAND FORMULA (4 mL/kg/% TBSA LR)</div>
         {[
-          {l:"Total 24hr", v:`${parkland_24h.toFixed(0).replace(/\.?0+$/, "")} mL LR`},
-          {l:"First 8hr", v:`${first8h.toFixed(0).replace(/\.?0+$/, "")} mL`},
-          {l:"Next 16hr", v:`${next16h.toFixed(0).replace(/\.?0+$/, "")} mL`},
-          {l:"Hourly (8hr window)", v:`${(first8h/8).toFixed(0).replace(/\.?0+$/, "")} mL/hr`},
+          {l:"Total 24hr", v:`${parkland_24h.toFixed(0)} mL LR`},
+          {l:"First 8hr", v:`${first8h.toFixed(0)} mL`},
+          {l:"Next 16hr", v:`${next16h.toFixed(0)} mL`},
+          {l:"Hourly (8hr window)", v:`${(first8h/8).toFixed(0)} mL/hr`},
         ].map(item=>(
           <div key={item.l} style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderBottom:`1px solid ${COLORS.border}`}}>
             <span style={{color:COLORS.textSub,fontSize:13,fontFamily:"'DM Mono',monospace"}}>{item.l}</span>
@@ -1564,7 +1574,7 @@ function QTcCalc() {
   const [hr, setHr] = useState(75);
   const [mode, setMode] = useState("hr");
   const rrMs = mode === "hr" ? (60000 / hr) : rr;
-  const qtc = (qt / Math.sqrt(rrMs / 1000)).toFixed(0).replace(/\.?0+$/, "");
+  const qtc = (qt / Math.sqrt(rrMs / 1000)).toFixed(0);
   const color = parseFloat(qtc) > 500 ? COLORS.danger : parseFloat(qtc) > 460 ? COLORS.warning : COLORS.success;
   const label = parseFloat(qtc) > 500 ? "Severely Prolonged — High TdP Risk" : parseFloat(qtc) > 480 ? "Borderline Prolonged" : parseFloat(qtc) > 440 ? "Mildly Prolonged" : "Normal QTc";
   return (
@@ -1573,7 +1583,7 @@ function QTcCalc() {
       <NumberInput label="QT Interval" value={qt} onChange={setQt} min={200} max={800} unit="ms" />
       {mode==="hr" && <NumberInput label="Heart Rate" value={hr} onChange={setHr} min={30} max={250} unit="bpm" />}
       {mode==="rr" && <NumberInput label="RR Interval" value={rr} onChange={setRr} min={300} max={2000} unit="ms" />}
-      <ResultBadge score={`${qtc} ms`} label={label} color={color} sublabel={`Bazett formula: QTc = QT / √(RR in sec) • RR = ${rrMs.toFixed(0).replace(/\.?0+$/, "")}ms`} />
+      <ResultBadge score={`${qtc} ms`} label={label} color={color} sublabel={`Bazett formula: QTc = QT / √(RR in sec) • RR = ${rrMs.toFixed(0)}ms`} />
     </div>
   );
 }
@@ -1769,11 +1779,11 @@ function SodiumCalc() {
       <div style={{marginTop:20,padding:"20px",borderRadius:14,background:COLORS.card,border:`1.5px solid ${COLORS.border}`}}>
         <div style={{color:COLORS.textMuted,fontSize:11,fontFamily:"'DM Mono',monospace",marginBottom:12}}>CORRECTION PLAN</div>
         {[
-          {l:"Na deficit",v:`${tbd.toFixed(1).replace(/\.?0+$/, "")} mEq`},
+          {l:"Na deficit",v:`${tbd.toFixed(1)} mEq`},
           {l:"Max correction rate",v:`${max_rate_hr} mEq/L/hr`},
           {l:"Max per 24hr",v:`${max_per_day} mEq/L/day`},
-          {l:"NS (154 mEq/L) needed",v:`${ns_vol.toFixed(0).replace(/\.?0+$/, "")} mL`},
-          {l:"3% NaCl needed",v:`${threePercent_vol.toFixed(0).replace(/\.?0+$/, "")} mL`},
+          {l:"NS (154 mEq/L) needed",v:`${ns_vol.toFixed(0)} mL`},
+          {l:"3% NaCl needed",v:`${threePercent_vol.toFixed(0)} mL`},
         ].map(item=>(
           <div key={item.l} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${COLORS.border}`}}>
             <span style={{color:COLORS.textSub,fontSize:13,fontFamily:"'DM Mono',monospace"}}>{item.l}</span>

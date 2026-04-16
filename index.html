@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
   <meta name="description" content="27 evidence-based pediatric clinical calculators for point-of-care decision support">
-  
+
   <style>
     * {
       margin: 0;
@@ -18,7 +18,7 @@
       box-sizing: border-box;
       -webkit-tap-highlight-color: transparent;
     }
-    
+
     html, body, #root {
       width: 100%;
       height: 100%;
@@ -27,12 +27,12 @@
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
-    
+
     body {
       background: #ffffff;
       touch-action: pan-y;
     }
-    
+
     #loading {
       position: fixed;
       top: 0;
@@ -48,7 +48,7 @@
       font-family: 'IBM Plex Mono', monospace;
       z-index: 9999;
     }
-    
+
     #loading-spinner {
       width: 40px;
       height: 40px;
@@ -58,11 +58,11 @@
       animation: spin 1s linear infinite;
       margin-bottom: 16px;
     }
-    
+
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
-    
+
     #loading-text {
       font-size: 11px;
       letter-spacing: 0.1em;
@@ -76,12 +76,12 @@
     <div id="loading-text">Loading PediCalc...</div>
   </div>
   <div id="root"></div>
-  
+
   <!-- Babel Standalone: transpiles JSX → plain JS at runtime -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <script type="module">
-    import React, { useState, useEffect, useRef } from 'https://esm.sh/react@18.2.0';
+    import React from 'https://esm.sh/react@18.2.0';
     import ReactDOM from 'https://esm.sh/react-dom@18.2.0/client';
 
     async function loadApp() {
@@ -101,29 +101,29 @@
           presets: ['react']
         }).code;
 
-        // Create a function that returns the App component
-        const componentFn = new Function('React', 'useState', 'useEffect', 'useRef', `
+        // Pass only React; hooks are destructured inside to avoid duplicate const declarations
+        const componentFn = new Function('React', `
           const { useState, useEffect, useRef } = React;
           ${transpiled}
           return App;
         `);
 
-        const App = componentFn(React, useState, useEffect, useRef);
-        
+        const App = componentFn(React);
+
         // Hide loading screen
         document.getElementById('loading').style.display = 'none';
-        
+
         // Render the app
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(React.createElement(App));
-        
+
       } catch (error) {
         console.error('Failed to load app:', error);
         document.getElementById('loading-text').textContent = 'Error loading app';
         document.getElementById('loading-text').style.color = '#db3737';
       }
     }
-    
+
     // Register service worker for PWA
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -132,7 +132,7 @@
           .catch(err => console.log('Service Worker registration failed:', err));
       });
     }
-    
+
     // Load the app
     loadApp();
   </script>

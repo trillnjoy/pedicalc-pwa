@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v1';
+const CACHE_NAME = 'pedicalc-v2'; // Change from v1 to v2
 const urlsToCache = [
   './',
   './index.html',

@@ -1263,8 +1263,9 @@ function DoseCalc() {
     atropine:      { name:"Atropine (bradycardia)", dose:[0.02,0.02], unit:"mg/kg", max:"1 mg", freq:"PRN q5min", route:"IV/IO" },
   };
   const d = DRUGS[drug];
-  const low = (weight * d.dose[0]).toFixed(1);
-  const high = (weight * d.dose[1]).toFixed(1);
+  // Calculate doses and strip trailing zeros after decimal point
+  const low = (weight * d.dose[0]).toFixed(1).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+  const high = (weight * d.dose[1]).toFixed(1).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
   return (
     <div>
       <NumberInput label="Weight" value={weight} onChange={setWeight} min={0.5} max={100} step={0.5} unit="kg" />

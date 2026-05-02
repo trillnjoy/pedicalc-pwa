@@ -33,17 +33,13 @@ const stripTrailingZeros = (num) => {
 
 // ─── CALCULATOR DEFINITIONS ──────────────────────────────────────────────────
 const CATEGORIES = [
-  { id: "neonatal", label: "Neonatal", icon: "👶" },
-  { id: "neurologic", label: "Neurologic", icon: "🧠" },
-  { id: "withdrawal", label: "Withdrawal", icon: "⚠️" },
-  { id: "toxicology", label: "Toxicology", icon: "☣️" },
-  { id: "hepatic", label: "Hepatic", icon: "🫀" },
+  { id: "neonatal",    label: "Neonatal",    icon: "👶🏼" },
+  { id: "fluid",       label: "FEN",         icon: "💧" },
+  { id: "neurologic",  label: "Neurologic",  icon: "🧠" },
   { id: "respiratory", label: "Respiratory", icon: "🫁" },
-  { id: "fluid", label: "Fluids/Nutrition", icon: "💧" },
-  { id: "dosing", label: "Dosing/Weight", icon: "⚖️" },
-  { id: "renal", label: "Renal", icon: "🩺" },
-  { id: "sepsis", label: "Sepsis/Infection", icon: "🦠" },
-  { id: "cardiac", label: "Cardiac", icon: "❤️" },
+  { id: "cardiac",     label: "Cardiac",     icon: "♥️" },
+  { id: "toxicology",  label: "Toxicology",  icon: "☠️" },
+  { id: "dosing",      label: "Common Rx",   icon: "💊" },
   { id: "readmission", label: "Risk Scores", icon: "📊" },
 ];
 
@@ -217,23 +213,25 @@ const CALC_REFERENCES = {
 function ScoreRow({ label, options, value, onChange }) {
   return (
     <div style={{ marginBottom: 10 }}>
-      <div style={{ color: COLORS.textMuted, fontSize: 11, marginBottom: 5, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 500 }}>{label}</div>
+      <div style={{ color: COLORS.navy, fontSize: 12, marginBottom: 5, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>{label}</div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
         {options.map((opt) => (
           <button
             key={opt.value}
             onClick={() => onChange(opt.value)}
             style={{
-              padding: "5px 10px",
+              flex: 1,
+              padding: "8px 6px",
               borderRadius: 3,
-              border: `1px solid ${value === opt.value ? COLORS.accent : COLORS.border}`,
-              background: value === opt.value ? COLORS.accentGlow : COLORS.bg,
-              color: value === opt.value ? COLORS.accent : COLORS.textSub,
-              fontSize: 12,
+              border: `1px solid #d0d4d9`,
+              background: value === opt.value ? "#e8eaed" : COLORS.bg,
+              color: COLORS.navy,
+              fontSize: 15,
               cursor: "pointer",
               transition: "all 0.1s",
-              fontFamily: "'IBM Plex Mono', monospace",
+              fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
               fontWeight: 500,
+              whiteSpace: "nowrap",
             }}
           >
             {opt.label}
@@ -245,40 +243,43 @@ function ScoreRow({ label, options, value, onChange }) {
 }
 
 function NumberInput({ label, value, onChange, min, max, step = 1, unit }) {
-  // Strip trailing zeros ONLY after decimal point
-  // 400 stays 400, 12.50 becomes 12.5
+  const [focused, setFocused] = useState(false);
   const displayValue = (() => {
     if (value === 0) return '0';
     const str = value.toString();
-    // Only strip zeros after decimal point
     return str.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
   })();
-  
+
+  // Gold only for physical units of measure, not descriptors
+  const physicalUnitPattern = /^(mg\/dL|mg\/kg|mcg\/mL|mEq\/L|mmol\/L|mg\/L|g\/dL|kg|grams|cm|bpm|ms|%|°C|°F|hours?( of life)?|days?|weeks?|years?( ≤\d+)?|breaths\/min|×10³\/μL|hr|mL|L|IU\/L|U\/L)$/i;
+  const isPhysicalUnit = unit && physicalUnitPattern.test(unit.trim());
+
   return (
     <div style={{ marginBottom: 10 }}>
-      <div style={{ color: COLORS.textMuted, fontSize: 11, marginBottom: 5, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 500 }}>
-        {label}{unit && <span style={{ color: COLORS.textSub, fontWeight: 400 }}> ({unit})</span>}
+      <div style={{ color: COLORS.navy, fontSize: 12, marginBottom: 5, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>
+        {label}{unit && <span style={{ color: isPhysicalUnit ? "#b8860b" : COLORS.textMuted, fontWeight: 600 }}> ({unit})</span>}
       </div>
       <input
         type="number"
+        inputMode="decimal"
         value={displayValue}
         min={min}
         max={max}
         step={step}
         onChange={(e) => {
           const val = e.target.value;
-          // Allow empty string during editing, otherwise parse to number
           onChange(val === '' ? 0 : parseFloat(val) || 0);
         }}
         onFocus={(e) => {
-          // Select all on focus for easy replacement
+          setFocused(true);
           e.target.select();
         }}
+        onBlur={() => setFocused(false)}
         style={{
           width: "100%",
-          padding: "7px 10px",
+          padding: "9px 10px",
           borderRadius: 3,
-          border: `1px solid ${COLORS.border}`,
+          border: focused ? `2px solid ${COLORS.navy}` : `1px solid #d0d4d9`,
           background: COLORS.bg,
           color: COLORS.navy,
           fontSize: 14,
@@ -286,6 +287,7 @@ function NumberInput({ label, value, onChange, min, max, step = 1, unit }) {
           fontWeight: 500,
           boxSizing: "border-box",
           outline: "none",
+          transition: "border 0.1s",
         }}
       />
     </div>
@@ -1803,33 +1805,41 @@ function SodiumCalc() {
 // REGISTRY OF ALL CALCULATORS
 // ═══════════════════════════════════════════════════════════════════════════════
 const CALCULATORS = [
-  { id:"apgar", category:"neonatal", name:"APGAR Score", desc:"Neonatal vitality assessment at 1, 5, 10 min", component: ApgarCalc },
-  { id:"pgcs", category:"neurologic", name:"Pediatric Glasgow Coma Scale", desc:"GCS adapted for infants and children", component: PGCSCalc },
-  { id:"cows", category:"withdrawal", name:"COWS Score", desc:"Clinical Opiate Withdrawal Scale", component: COWSCalc },
-  { id:"finnegan", category:"withdrawal", name:"Modified Finnegan NAS", desc:"Neonatal Abstinence Syndrome scoring", component: FinneganCalc },
-  { id:"wat1", category:"withdrawal", name:"WAT-1", desc:"Withdrawal Assessment Tool — iatrogenic opioid/benzo", component: WATCalc },
-  { id:"apap", category:"toxicology", name:"Acetaminophen Toxicity", desc:"Dose assessment + Rumack-Matthew nomogram", component: AcetaminophenCalc },
-  { id:"bilirubin", category:"hepatic", name:"Neonatal Hyperbilirubinemia", desc:"Bhutani nomogram + phototherapy thresholds", component: BilirubinCalc },
-  { id:"readmission", category:"readmission", name:"Pediatric Readmission Risk", desc:"30-day readmission risk estimation", component: ReadmissionCalc },
-  { id:"pews", category:"readmission", name:"PEWS", desc:"Pediatric Early Warning Score", component: PEWSCalc },
-  { id:"pecarn", category:"neurologic", name:"PECARN Head CT", desc:"CT rule for pediatric head trauma", component: PECARNCalc },
-  { id:"fluid", category:"fluid", name:"Maintenance Fluids", desc:"Holliday-Segar method", component: FluidCalc },
-  { id:"dose", category:"dosing", name:"Common Drug Doses", desc:"Weight-based pediatric dosing reference", component: DoseCalc },
-  { id:"u25gfr", category:"renal", name:"U25 eGFR", desc:"Cystatin-C and SCr-based GFR for age ≤25 years", component: U25GFRCalc },
-  { id:"sepsis", category:"sepsis", name:"Pediatric SIRS/Sepsis", desc:"Age-adjusted SIRS criteria and sepsis screening", component: SepsisCalc },
-  { id:"dvt", category:"cardiac", name:"Wells DVT Score", desc:"DVT probability in children (adapted Wells)", component: DVTCalc },
-  { id:"catch", category:"neurologic", name:"CATCH Head CT Rule", desc:"Canadian CT head injury rule for children", component: CATCHCalc },
-  { id:"bronchiolitis", category:"respiratory", name:"Bronchiolitis Severity", desc:"Respiratory severity scoring for bronchiolitis", component: BronchiolitisCalc },
-  { id:"asthma", category:"respiratory", name:"Asthma Severity (PRAM)", desc:"Pediatric Respiratory Assessment Measure", component: AsthmaCalc },
-  { id:"burns", category:"fluid", name:"Burn Fluid Resuscitation", desc:"Parkland formula for pediatric burns", component: BurnsCalc },
-  { id:"qtc", category:"cardiac", name:"Corrected QT (Bazett)", desc:"QTc calculation and risk assessment", component: QTcCalc },
-  { id:"flacc", category:"readmission", name:"FLACC Pain Scale", desc:"Behavioral pain scale for non-verbal children", component: FLACCCalc },
-  { id:"glucose", category:"neonatal", name:"Neonatal Hypoglycemia", desc:"AAP 2011 glucose thresholds by postnatal age", component: NeonatalGlucoseCalc },
-  { id:"preterm", category:"neonatal", name:"Prematurity Risk Assessment", desc:"Category and anticipated concerns by GA/weight", component: PretermCalc },
-  { id:"dehydration", category:"fluid", name:"Dehydration Score", desc:"Clinical dehydration assessment (WHO/Gorelick)", component: DehydrationCalc },
-  { id:"kawasaki", category:"cardiac", name:"Kawasaki Disease Criteria", desc:"AHA 2017 diagnostic criteria", component: KawasakiCalc },
-  { id:"natfrac", category:"sepsis", name:"NAT Fracture Risk", desc:"Non-accidental trauma fracture indicators", component: ChildAbuseFracCalc },
-  { id:"sodium", category:"renal", name:"Hyponatremia Correction", desc:"Sodium deficit and correction rate calculation", component: SodiumCalc },
+  // Neonatal
+  { id:"apgar",        category:"neonatal",    name:"APGAR Score",                  desc:"Neonatal vitality assessment at 1, 5, 10 min",            component: ApgarCalc },
+  { id:"bilirubin",    category:"neonatal",    name:"Neonatal Hyperbilirubinemia",  desc:"Bhutani nomogram + phototherapy thresholds",              component: BilirubinCalc },
+  { id:"glucose",      category:"neonatal",    name:"Neonatal Hypoglycemia",        desc:"AAP 2011 glucose thresholds by postnatal age",            component: NeonatalGlucoseCalc },
+  { id:"preterm",      category:"neonatal",    name:"Prematurity Risk Assessment",  desc:"Category and anticipated concerns by GA/weight",          component: PretermCalc },
+  { id:"finnegan",     category:"neonatal",    name:"Modified Finnegan NAS",        desc:"Neonatal Abstinence Syndrome scoring",                    component: FinneganCalc },
+  // Neurologic (expanded)
+  { id:"pgcs",         category:"neurologic",  name:"Pediatric Glasgow Coma Scale", desc:"GCS adapted for infants and children",                    component: PGCSCalc },
+  { id:"pecarn",       category:"neurologic",  name:"PECARN Head CT",               desc:"CT rule for pediatric head trauma",                       component: PECARNCalc },
+  { id:"catch",        category:"neurologic",  name:"CATCH Head CT Rule",           desc:"Canadian CT head injury rule for children",               component: CATCHCalc },
+  { id:"cows",         category:"neurologic",  name:"COWS Score",                   desc:"Clinical Opiate Withdrawal Scale",                        component: COWSCalc },
+  { id:"wat1",         category:"neurologic",  name:"WAT-1",                        desc:"Withdrawal Assessment Tool — iatrogenic opioid/benzo",    component: WATCalc },
+  { id:"flacc",        category:"neurologic",  name:"FLACC Pain Scale",             desc:"Behavioral pain scale for non-verbal children",           component: FLACCCalc },
+  // Toxicology
+  { id:"apap",         category:"toxicology",  name:"Acetaminophen Toxicity",       desc:"Dose assessment + Rumack-Matthew nomogram",               component: AcetaminophenCalc },
+  // Respiratory
+  { id:"bronchiolitis",category:"respiratory", name:"Bronchiolitis Severity",       desc:"Respiratory severity scoring for bronchiolitis",          component: BronchiolitisCalc },
+  { id:"asthma",       category:"respiratory", name:"Asthma Severity (PRAM)",       desc:"Pediatric Respiratory Assessment Measure",               component: AsthmaCalc },
+  // FEN (Fluids, Electrolytes & Nutrition)
+  { id:"fluid",        category:"fluid",       name:"Maintenance Fluids",           desc:"Holliday-Segar method",                                   component: FluidCalc },
+  { id:"burns",        category:"fluid",       name:"Burn Fluid Resuscitation",     desc:"Parkland formula for pediatric burns",                    component: BurnsCalc },
+  { id:"dehydration",  category:"fluid",       name:"Dehydration Score",            desc:"Clinical dehydration assessment (WHO/Gorelick)",          component: DehydrationCalc },
+  { id:"sodium",       category:"fluid",       name:"Hyponatremia Correction",      desc:"Sodium deficit and correction rate calculation",          component: SodiumCalc },
+  { id:"u25gfr",       category:"fluid",       name:"U25 eGFR",                     desc:"Cystatin-C and SCr-based GFR for age ≤25 years",         component: U25GFRCalc },
+  // Common Rx
+  { id:"dose",         category:"dosing",      name:"Common Drug Doses",            desc:"Weight-based pediatric dosing reference",                 component: DoseCalc },
+  // Cardiac
+  { id:"dvt",          category:"cardiac",     name:"Wells DVT Score",              desc:"DVT probability in children (adapted Wells)",             component: DVTCalc },
+  { id:"qtc",          category:"cardiac",     name:"Corrected QT (Bazett)",        desc:"QTc calculation and risk assessment",                     component: QTcCalc },
+  { id:"kawasaki",     category:"cardiac",     name:"Kawasaki Disease Criteria",    desc:"AHA 2017 diagnostic criteria",                           component: KawasakiCalc },
+  // Risk Scores
+  { id:"sepsis",       category:"readmission", name:"Pediatric SIRS/Sepsis",        desc:"Age-adjusted SIRS criteria and sepsis screening",         component: SepsisCalc },
+  { id:"natfrac",      category:"readmission", name:"NAT Fracture Risk",            desc:"Non-accidental trauma fracture indicators",               component: ChildAbuseFracCalc },
+  { id:"readmission",  category:"readmission", name:"Pediatric Readmission Risk",   desc:"30-day readmission risk estimation",                      component: ReadmissionCalc },
+  { id:"pews",         category:"readmission", name:"PEWS",                         desc:"Pediatric Early Warning Score",                           component: PEWSCalc },
 ];
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
@@ -1878,7 +1888,7 @@ export default function App() {
           <div style={{ flex: 1 }}>
             {activeCalc ? (
               <div style={{ animation: "fadeUp 0.2s ease" }}>
-                <div style={{ color: COLORS.accentDim, fontSize: 9, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 500 }}>
+                <div style={{ color: "#d4a444", fontSize: 9, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 500 }}>
                   {CATEGORIES.find(c => c.id === activeCalc.category)?.label}
                 </div>
                 <div style={{ color: "#ffffff", fontSize: 16, fontWeight: 600, lineHeight: 1.2, marginTop: 2 }}>{activeCalc.name}</div>
@@ -1887,9 +1897,9 @@ export default function App() {
               <div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
                   <span style={{ color: "#ffffff", fontSize: 20, fontWeight: 600, letterSpacing: "-0.01em" }}>PediCalc</span>
-                  <span style={{ color: COLORS.accentDim, fontSize: 10, fontFamily: "'IBM Plex Mono', monospace", marginLeft: 2 }}>EMR</span>
+                  <span style={{ color: "#d4a444", fontSize: 10, fontFamily: "'IBM Plex Mono', monospace", marginLeft: 2 }}>EMR</span>
                 </div>
-                <div style={{ color: COLORS.accentDim, fontSize: 11, fontFamily: "'IBM Plex Mono', monospace", marginTop: 2 }}>
+                <div style={{ color: "#d4a444", fontSize: 11, fontFamily: "'IBM Plex Mono', monospace", marginTop: 2 }}>
                   {CALCULATORS.length} clinical calculators
                 </div>
               </div>
@@ -1917,7 +1927,6 @@ export default function App() {
               ℹ️
             </button>
           )}
-          <div style={{ width: 7, height: 7, borderRadius: "50%", background: COLORS.success, boxShadow: `0 0 6px ${COLORS.success}` }} />
         </div>
 
         {!activeCalc && (
@@ -1932,17 +1941,24 @@ export default function App() {
                 style={{ width: "100%", padding: "7px 10px 7px 32px", borderRadius: 2, border: `1px solid ${search ? COLORS.accent : COLORS.border}`, background: COLORS.bg, color: COLORS.navy, fontSize: 13, fontFamily: "'IBM Plex Sans', sans-serif", outline: "none", transition: "border 0.1s" }}
               />
             </div>
-            {/* CATEGORY TABS */}
+            {/* CATEGORY TABS — 40×40 touch targets, 22px emoji */}
             <div style={{ display: "flex", gap: 4, overflowX: "auto", paddingBottom: 10, scrollbarWidth: "none" }}>
-              <button onClick={() => setActiveCategory("all")} style={{ flexShrink: 0, padding: "4px 10px", borderRadius: 2, border: `1px solid ${activeCategory === "all" ? COLORS.accent : COLORS.border}`, background: activeCategory === "all" ? COLORS.accentGlow : COLORS.bg, color: activeCategory === "all" ? COLORS.accent : COLORS.textMuted, fontSize: 10, cursor: "pointer", fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap", fontWeight: 500 }}>
-                All ({CALCULATORS.length})
+              <button
+                onClick={() => setActiveCategory("all")}
+                title="All calculators"
+                style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 2, border: `1px solid ${activeCategory === "all" ? COLORS.accent : COLORS.border}`, background: activeCategory === "all" ? COLORS.accentGlow : COLORS.bg, color: activeCategory === "all" ? "#d4a444" : COLORS.textMuted, fontSize: 8, cursor: "pointer", fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, letterSpacing: "0.05em", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                ALL
               </button>
               {CATEGORIES.map(cat => {
                 const count = CALCULATORS.filter(c => c.category === cat.id).length;
                 if (!count) return null;
                 return (
-                  <button key={cat.id} onClick={() => setActiveCategory(cat.id)} style={{ flexShrink: 0, padding: "4px 10px", borderRadius: 2, border: `1px solid ${activeCategory === cat.id ? COLORS.accent : COLORS.border}`, background: activeCategory === cat.id ? COLORS.accentGlow : COLORS.bg, color: activeCategory === cat.id ? COLORS.accent : COLORS.textMuted, fontSize: 10, cursor: "pointer", fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap", fontWeight: 500 }}>
-                    {cat.icon} {cat.label}
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id)}
+                    title={cat.label}
+                    style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 2, border: `1px solid ${activeCategory === cat.id ? COLORS.accent : COLORS.border}`, background: activeCategory === cat.id ? COLORS.accentGlow : COLORS.bg, cursor: "pointer", fontSize: 22, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {cat.icon}
                   </button>
                 );
               })}
@@ -1955,13 +1971,6 @@ export default function App() {
       <div ref={contentRef} style={{ padding: "0 16px 100px", overflowY: "auto", maxHeight: "calc(100vh - 180px)" }}>
         {!activeCalc ? (
           <div style={{ animation: "fadeUp 0.25s ease" }}>
-            {/* DISCLAIMER */}
-            <div style={{ margin: "12px 0 8px", padding: "8px 12px", borderRadius: 2, background: "rgba(217,130,43,0.06)", border: `1px solid ${COLORS.warning}` }}>
-              <div style={{ color: COLORS.warning, fontSize: 10, fontFamily: "'IBM Plex Sans', sans-serif", lineHeight: 1.5, fontWeight: 500 }}>
-                ⚠ For clinical decision support only. Always verify with clinical judgment and current guidelines.
-              </div>
-            </div>
-
             {/* CALC GRID */}
             {filtered.length === 0 ? (
               <div style={{ textAlign: "center", padding: "60px 20px", color: COLORS.textMuted, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>No calculators found</div>
@@ -1975,7 +1984,7 @@ export default function App() {
                     onClick={() => openCalc(calc)}
                     style={{
                       width: "100%",
-                      padding: "10px 12px",
+                      padding: "2px 12px 2px 0",
                       borderRadius: 0,
                       border: "none",
                       borderBottom: `1px solid ${COLORS.border}`,
@@ -1991,11 +2000,11 @@ export default function App() {
                     onMouseEnter={e => { e.currentTarget.style.background = COLORS.cardHover; }}
                     onMouseLeave={e => { e.currentTarget.style.background = isEven ? COLORS.bg : COLORS.surface; }}
                   >
-                    <div style={{ width: 32, height: 32, borderRadius: 2, background: COLORS.accentGlow, border: `1px solid ${COLORS.accentDim}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 2, background: "#f0f1f3", border: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
                       {cat?.icon}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ color: COLORS.navy, fontSize: 13, fontWeight: 600, lineHeight: 1.2, fontFamily: "'IBM Plex Sans', sans-serif" }}>{calc.name}</div>
+                      <div style={{ color: COLORS.navy, fontSize: 15, fontWeight: 600, lineHeight: 1.2, fontFamily: "'IBM Plex Sans', sans-serif" }}>{calc.name}</div>
                       <div style={{ color: COLORS.textMuted, fontSize: 10, fontFamily: "'IBM Plex Mono', monospace", marginTop: 2, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{calc.desc}</div>
                     </div>
                     <span style={{ color: COLORS.textMuted, fontSize: 16, flexShrink: 0 }}>›</span>
@@ -2108,8 +2117,8 @@ export default function App() {
       {/* BOTTOM NAV */}
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "8px 16px 20px", background: `linear-gradient(transparent, ${COLORS.bg} 40%)`, pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto", display: "flex", justifyContent: "center" }}>
-          <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 2, padding: "5px 12px", fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, fontWeight: 500 }}>
-            PediCalc EMR · {CALCULATORS.length} tools · Clinical Support
+          <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 2, padding: "5px 12px", fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, fontWeight: 500, textAlign: "center" }}>
+            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v4
           </div>
         </div>
       </div>

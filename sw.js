@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v3'; // Changed from v2 to v3 for splash screen update
+const CACHE_NAME = 'pedicalc-v4'; // v4 — UI overhaul May 2026
 const urlsToCache = [
   './',
   './index.html',
@@ -8,7 +8,6 @@ const urlsToCache = [
   './icon-512.png'
 ];
 
-// Install service worker and cache resources
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -17,7 +16,6 @@ self.addEventListener('install', event => {
   );
 });
 
-// Activate service worker and clean up old caches
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(cacheNames => {
@@ -32,19 +30,16 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch strategy: Network first, fall back to cache
 self.addEventListener('fetch', event => {
   event.respondWith(
     fetch(event.request)
       .then(response => {
-        // Clone the response before caching
         const responseToCache = response.clone();
         caches.open(CACHE_NAME)
           .then(cache => cache.put(event.request, responseToCache));
         return response;
       })
       .catch(() => {
-        // Network failed, try cache
         return caches.match(event.request);
       })
   );

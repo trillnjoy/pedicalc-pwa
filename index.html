@@ -83,7 +83,6 @@
   </div>
   <div id="root"></div>
 
-  <!-- Babel Standalone: transpiles JSX → plain JS at runtime -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <script type="module">
@@ -92,24 +91,19 @@
 
     async function loadApp() {
       const startTime = Date.now();
-      
+
       try {
-        // Load the JSX component source
         const response = await fetch('PediatricCalc.jsx');
         const code = await response.text();
 
-        // Strip import lines and the export default keyword
         const componentCode = code
           .replace(/^import.*?;?\n/gm, '')
           .replace(/export default /, '');
 
-        // CRITICAL: Transpile JSX → plain JS before passing to new Function()
-        // new Function() only accepts standard JS, not JSX syntax
         const transpiled = Babel.transform(componentCode, {
           presets: ['react']
         }).code;
 
-        // Pass only React; hooks are destructured inside to avoid duplicate const declarations
         const componentFn = new Function('React', `
           const { useState, useEffect, useRef } = React;
           ${transpiled}
@@ -118,14 +112,12 @@
 
         const App = componentFn(React);
 
-        // Render the app
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(React.createElement(App));
 
-        // Ensure splash shows for at least 2 seconds
         const elapsed = Date.now() - startTime;
         const remainingTime = Math.max(0, 2000 - elapsed);
-        
+
         setTimeout(() => {
           document.getElementById('loading').style.display = 'none';
         }, remainingTime);
@@ -136,7 +128,6 @@
       }
     }
 
-    // Register service worker for PWA
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js')
@@ -145,7 +136,6 @@
       });
     }
 
-    // Load the app
     loadApp();
   </script>
 </body>

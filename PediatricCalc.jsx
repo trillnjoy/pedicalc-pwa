@@ -1838,7 +1838,24 @@ export default function App() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [search, setSearch] = useState("");
   const [showInfo, setShowInfo] = useState(false);
+  const [appVersion, setAppVersion] = useState("v3.0");
   const contentRef = useRef(null);
+
+  // Fetch version from service worker
+  useEffect(() => {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      const messageChannel = new MessageChannel();
+      messageChannel.port1.onmessage = (event) => {
+        if (event.data.readableVersion) {
+          setAppVersion(event.data.readableVersion);
+        }
+      };
+      navigator.serviceWorker.controller.postMessage(
+        { type: 'GET_VERSION' },
+        [messageChannel.port2]
+      );
+    }
+  }, []);
 
   const filtered = CALCULATORS.filter(c => {
     const matchCat = activeCategory === "all" || c.category === activeCategory;
@@ -2109,7 +2126,7 @@ export default function App() {
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "8px 16px 20px", background: `linear-gradient(transparent, ${COLORS.bg} 40%)`, pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto", display: "flex", justifyContent: "center" }}>
           <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 2, padding: "5px 12px", fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, fontWeight: 500 }}>
-            PediCalc EMR · {CALCULATORS.length} tools · Clinical Support
+            PediCalc EMR · {appVersion} · {CALCULATORS.length} tools
           </div>
         </div>
       </div>

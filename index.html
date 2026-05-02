@@ -91,6 +91,8 @@
     import ReactDOM from 'https://esm.sh/react-dom@18.2.0/client';
 
     async function loadApp() {
+      const startTime = Date.now();
+      
       try {
         // Load the JSX component source
         const response = await fetch('PediatricCalc.jsx');
@@ -116,17 +118,21 @@
 
         const App = componentFn(React);
 
-        // Hide loading screen
-        document.getElementById('loading').style.display = 'none';
-
         // Render the app
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(React.createElement(App));
 
+        // Ensure splash shows for at least 2 seconds
+        const elapsed = Date.now() - startTime;
+        const remainingTime = Math.max(0, 2000 - elapsed);
+        
+        setTimeout(() => {
+          document.getElementById('loading').style.display = 'none';
+        }, remainingTime);
+
       } catch (error) {
         console.error('Failed to load app:', error);
-        document.getElementById('loading-text').textContent = 'Error loading app';
-        document.getElementById('loading-text').style.color = '#db3737';
+        document.getElementById('loading').innerHTML = '<p style="color: #db3737; padding: 20px;">Error loading app</p>';
       }
     }
 

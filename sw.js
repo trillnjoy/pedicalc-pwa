@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v2'; // Change from v1 to v2
+const CACHE_NAME = 'pedicalc-v3'; // Changed from v2 to v3 for splash screen update
 const urlsToCache = [
   './',
   './index.html',

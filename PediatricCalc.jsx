@@ -1462,27 +1462,275 @@ function PECARNCalc() {
 // ═══════════════════════════════════════════════════════════════════════════════
 function FluidCalc() {
   const [weight, setWeight] = useState(20);
-  const ml_day = weight <= 10 ? weight * 100 : weight <= 20 ? 1000 + (weight-10)*50 : 1500 + (weight-20)*20;
-  const ml_hr = (ml_day / 24).toFixed(1);
-  const d5w = (ml_day * 0.05 / 1000).toFixed(1);
-  return (
-    <div>
-      <NumberInput label="Weight" value={weight} onChange={setWeight} min={0.5} max={100} step={0.5} unit="kg" />
-      <div style={{marginTop:20,padding:"20px",borderRadius:14,background:COLORS.card,border:`1.5px solid ${COLORS.border}`}}>
-        <div style={{color:COLORS.textMuted,fontSize:11,fontFamily:"'DM Mono',monospace",marginBottom:14}}>HOLLIDAY-SEGAR CALCULATION</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          {[
-            {label:"mL/day",value:ml_day.toFixed(0)},
-            {label:"mL/hr",value:ml_hr},
-            {label:"Formula",value:weight<=10?"100×wt":weight<=20?"1000+50×(wt−10)":"1500+20×(wt−20)"},
-            {label:"Dextrose 5%",value:`${d5w} g dextrose`}
-          ].map(item=>(
-            <div key={item.label} style={{padding:"12px 14px",borderRadius:10,background:COLORS.bg,border:`1px solid ${COLORS.border}`}}>
-              <div style={{color:COLORS.textMuted,fontSize:10,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.08em"}}>{item.label}</div>
-              <div style={{color:COLORS.accent,fontSize:18,fontWeight:700,fontFamily:"'Sora',sans-serif",marginTop:4}}>{item.value}</div>
+  const [rateMethod, setRateMethod] = useState("hs");
+  const [fluid, setFluid] = useState("d5ns");
+  const [kcl, setKcl] = useState(20);
+  const [insensibleIdx, setInsensibleIdx] = useState(2);
+  const [tempIdx, setTempIdx] = useState(3);
+  const [metabolic, setMetabolic] = useState(0);
+
+  // Holliday-Segar
+  const hsDaily = weight <= 10 ? weight * 100
+    : weight <= 20 ? 1000 + (weight - 10) * 50
+    : 1500 + (weight - 20) * 20;
+  const hsHourly = hsDaily / 24;
+  const hsFormula = weight <= 10 ? `${weight} × 100` : weight <= 20 ? `1000 + ${weight-10} × 50` : `1500 + ${weight-20} × 20`;
+
+  // 4:2:1
+  const fourTwoOneHourly = weight <= 10 ? weight * 4
+    : weight <= 20 ? 40 + (weight - 10) * 2
+    : 60 + (weight - 20) * 1;
+  const fourTwoOneDaily = fourTwoOneHourly * 24;
+  const ftwoFormula = weight <= 10 ? `${weight} × 4` : weight <= 20 ? `40 + ${weight-10} × 2` : `60 + ${weight-20} × 1`;
+
+  // Sliders
+  const INSENSIBLE = [
+    { label: "Ventilator", pct: -0.10 },
+    { label: "Humidified O₂", pct: -0.05 },
+    { label: "Room Air", pct: 0 },
+    { label: "Tachypnea", pct: 0.05 },
+    { label: "Hot/Dry", pct: 0.10 },
+  ];
+  const TEMP = [
+    { label: "34°C", pct: -0.20 },
+    { label: "35°C", pct: -0.10 },
+    { label: "36°C", pct: 0 },
+    { label: "37°C", pct: 0 },
+    { label: "38°C", pct: 0 },
+    { label: "39°C", pct: 0.10 },
+    { label: "40°C", pct: 0.20 },
+  ];
+  const METABOLIC_STEPS = [-0.40,-0.30,-0.20,-0.10,0,0.10,0.20,0.30,0.40];
+
+  const insPct = INSENSIBLE[insensibleIdx].pct;
+  const tempPct = TEMP[tempIdx].pct;
+  const metPct = metabolic;
+
+  // Adjusted volume (multiplicative)
+  const adjustedDaily = hsDaily * (1 + insPct) * (1 + tempPct) * (1 + metPct);
+  const adjustedHourly = adjustedDaily / 24;
+
+  // Selected base rate (pre-adjustment)
+  const baseHourly = rateMethod === "hs" ? hsHourly : fourTwoOneHourly;
+  const baseDaily = baseHourly * 24;
+
+  // Applied adjustments to selected rate
+  const selectedHourly = baseHourly * (1 + insPct) * (1 + tempPct) * (1 + metPct);
+  const selectedDaily = selectedHourly * 24;
+
+  // Fluid compositions
+  const FLUIDS = {
+    ns:    { label: "NS (0.9%)",  na: 154, dex: 0,  warning: null },
+    d5ns:  { label: "D5NS",       na: 154, dex: 5,  warning: null },
+    d5hns: { label: "D5½NS",      na: 77,  dex: 5,  warning: "⚠ Hypotonic — AAP 2018 recommends isotonic solutions" },
+    d10ns: { label: "D10NS",      na: 154, dex: 10, warning: null },
+    d10w:  { label: "D10W",       na: 0,   dex: 10, warning: "⚠ No sodium — requires separate Na supplementation" },
+  };
+  const f = FLUIDS[fluid];
+
+  // Requirements
+  const naReqLow = (3 * weight).toFixed(0);
+  const naReqHigh = (4 * weight).toFixed(0);
+  const kReqLow = (1 * weight).toFixed(0);
+  const kReqHigh = (2 * weight).toFixed(0);
+
+  // Delivered
+  const naDelivered = ((f.na * selectedDaily) / 1000).toFixed(1);
+  const kDelivered = ((kcl * selectedDaily) / 1000).toFixed(1);
+  const gir = f.dex > 0 ? ((f.dex * 10 * selectedHourly) / (60 * weight)).toFixed(2) : null;
+  const girOk = gir ? parseFloat(gir) >= 3 && parseFloat(gir) <= 6 : null;
+
+  // Styles
+  const rowStyle = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${COLORS.border}` };
+  const labelStyle = { color: COLORS.textMuted, fontSize: 11, fontFamily: "'IBM Plex Sans', sans-serif", fontWeight: 600 };
+  const reqStyle = { color: COLORS.navy, fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", textAlign: "right" };
+  const delivStyle = (ok) => ({ color: ok === false ? COLORS.warning : ok === true ? COLORS.success : COLORS.navy, fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", textAlign: "right", fontWeight: 600 });
+  const pctLabel = (pct) => pct === 0 ? "0%" : pct > 0 ? `+${(pct*100).toFixed(0)}%` : `${(pct*100).toFixed(0)}%`;
+
+  // Pip stepper — no arrow boxes, full-width tap targets
+  const Stepper = ({ label, steps, idx, setIdx, leftNote, rightNote, warning }) => {
+    const pct = steps[idx].pct;
+    const activeColor = pct > 0 ? COLORS.danger : pct < 0 ? COLORS.accent : COLORS.navy;
+    return (
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+          <div style={{ color: COLORS.navy, fontSize: 12, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>{label}</div>
+          <div style={{ color: pct === 0 ? COLORS.textMuted : activeColor, fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>
+            {steps[idx].label} · {pctLabel(pct)}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 4 }}>
+          {steps.map((s, i) => (
+            <div key={i} onClick={() => setIdx(i)}
+              style={{ flex: 1, height: 28, borderRadius: 3, background: i === idx ? activeColor : COLORS.border, cursor: "pointer", transition: "background 0.15s", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {i === idx && <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff" }} />}
             </div>
           ))}
         </div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+          <div style={{ color: COLORS.textMuted, fontSize: 10, fontFamily: "'IBM Plex Sans', sans-serif" }}>{leftNote}</div>
+          <div style={{ color: COLORS.textMuted, fontSize: 10, fontFamily: "'IBM Plex Sans', sans-serif", textAlign: "right" }}>{rightNote}</div>
+        </div>
+        {warning && <div style={{ marginTop: 4, fontSize: 10, color: COLORS.warning, fontFamily: "'IBM Plex Sans', sans-serif" }}>{warning}</div>}
+      </div>
+    );
+  };
+
+  const metIdx = METABOLIC_STEPS.indexOf(metPct) === -1 ? 4 : METABOLIC_STEPS.indexOf(metPct);
+
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const GoldDivider = ({ open, onToggle }) => (
+    <div onClick={onToggle} style={{ position: "relative", marginBottom: open ? 0 : 10, marginTop: 10, cursor: "pointer", userSelect: "none" }}>
+      <div style={{ height: 2, background: "#d4a444", borderRadius: 1 }} />
+      <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: COLORS.bg, padding: "0 8px", lineHeight: 1 }}>
+        <span style={{ color: "#d4a444", fontSize: 14, fontWeight: 700 }}>{open ? "∧" : "∨"}</span>
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      {/* Weight + Rate toggle: equal halves, aligned labels */}
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 10 }}>
+        <div style={{ flex: 1 }}>
+          <NumberInput label="Weight" value={weight} onChange={setWeight} min={0.5} max={100} step={0.5} unit="kg" />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ color: COLORS.navy, fontSize: 12, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, marginBottom: 5 }}>Rate Calculation Method</div>
+          <div style={{ display: "flex" }}>
+            {[{value:"hs",label:"H-S"},{value:"421",label:"4:2:1"}].map((opt, i) => (
+              <button key={opt.value} onClick={() => setRateMethod(opt.value)} style={{
+                flex: 1, padding: "9px 6px",
+                border: "1px solid #d0d4d9",
+                borderRadius: i === 0 ? "3px 0 0 3px" : "0 3px 3px 0",
+                borderLeft: i === 1 ? "none" : "1px solid #d0d4d9",
+                background: rateMethod === opt.value ? "#e8eaed" : COLORS.bg,
+                color: COLORS.navy, fontSize: 13, cursor: "pointer",
+                fontFamily: "-apple-system, sans-serif",
+                fontWeight: rateMethod === opt.value ? 700 : 500,
+                whiteSpace: "nowrap", textAlign: "center",
+              }}>{opt.label}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Gold divider with chevron — top of accordion */}
+      <GoldDivider open={detailOpen} onToggle={() => setDetailOpen(o => !o)} />
+
+      {/* Accordion */}
+      {detailOpen && (
+        <div style={{ marginBottom: 0, padding: "10px 12px", background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderTop: "none", borderBottom: "none" }}>
+          {/* Selected method detail */}
+          {rateMethod === "hs" ? (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span style={{ fontSize: 12, fontFamily: "-apple-system, sans-serif", fontWeight: 700, color: COLORS.navy }}>H-S</span>
+                <span style={{ fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600, color: COLORS.navy }}>~{hsHourly.toFixed(1)} mL/hr</span>
+              </div>
+              <div style={{ textAlign: "center", fontSize: 11, fontFamily: "'IBM Plex Mono', monospace", marginTop: 2 }}><strong style={{ color: COLORS.navy }}>{hsDaily.toFixed(0)} mL/day</strong></div>
+              <div style={{ marginTop: 6, fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, lineHeight: 1.6 }}>
+                <div>(100×{Math.min(weight,10)})+(50×{Math.max(0,Math.min(weight-10,10))})+(20×{Math.max(0,weight-20)})</div>
+                <div>= <strong style={{ color: COLORS.navy }}>{hsDaily.toFixed(0)} mL/day</strong> [÷24 = ~{hsHourly.toFixed(1)} mL/hr]</div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <span style={{ fontSize: 12, fontFamily: "-apple-system, sans-serif", fontWeight: 700, color: COLORS.navy }}>4:2:1</span>
+                <span style={{ fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600, color: COLORS.navy }}>{Math.round(fourTwoOneHourly)} mL/hr</span>
+              </div>
+              <div style={{ textAlign: "center", fontSize: 11, fontFamily: "'IBM Plex Mono', monospace", marginTop: 2 }}><strong style={{ color: COLORS.navy }}>{fourTwoOneDaily.toFixed(0)} mL/day</strong></div>
+              <div style={{ marginTop: 6, fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, lineHeight: 1.6 }}>
+                <div>(4×{Math.min(weight,10)})+(2×{Math.max(0,Math.min(weight-10,10))})+(1×{Math.max(0,weight-20)})</div>
+                <div>= {Math.round(fourTwoOneHourly)} mL/hr [×24 = ~<strong style={{ color: COLORS.navy }}>{fourTwoOneDaily.toFixed(0)} mL/day</strong>]</div>
+              </div>
+            </div>
+          )}
+
+          <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: 10, marginTop: 4 }}>
+            <Stepper label="Insensible Losses" steps={INSENSIBLE} idx={insensibleIdx} setIdx={setInsensibleIdx} leftNote="Ventilator / humidified circuit" rightNote="Tachypnea / hot-dry environment" />
+            <Stepper label="Temperature" steps={TEMP} idx={tempIdx} setIdx={setTempIdx} leftNote="Hypothermia / cooling protocol" rightNote="Fever ≥39°C" warning={tempIdx === 6 ? "⚠ >40°C requires individualized assessment" : null} />
+            <Stepper label="Metabolic State" steps={METABOLIC_STEPS.map(p => ({ label: p === 0 ? "Baseline" : pctLabel(p), pct: p }))} idx={metIdx} setIdx={i => setMetabolic(METABOLIC_STEPS[i])} leftNote="Coma · paralysis · deep sedation" rightNote="Burn · sepsis · status · thyroid storm" />
+          </div>
+        </div>
+      )}
+
+      {/* Gold divider — bottom only shown when open */}
+      {detailOpen && <GoldDivider open={detailOpen} onToggle={() => setDetailOpen(o => !o)} />}
+
+      {/* IV fluid */}
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ color: COLORS.navy, fontSize: 12, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, marginBottom: 5 }}>IV Fluid</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+          {Object.entries(FLUIDS).map(([key, fl]) => (
+            <button key={key} onClick={() => setFluid(key)} style={{ flex: 1, padding: "8px 6px", borderRadius: 3, border: `1px solid ${fluid === key && fl.warning ? COLORS.warning : "#d0d4d9"}`, background: fluid === key ? "#e8eaed" : COLORS.bg, color: COLORS.navy, fontSize: 13, cursor: "pointer", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", fontWeight: 500, whiteSpace: "nowrap" }}>{fl.label}</button>
+          ))}
+        </div>
+        {f.warning && (
+          <div style={{ marginTop: 6, padding: "6px 10px", borderRadius: 3, background: "rgba(217,130,43,0.07)", border: `1px solid ${COLORS.warning}`, color: COLORS.warning, fontSize: 11, fontFamily: "'IBM Plex Sans', sans-serif" }}>{f.warning}</div>
+        )}
+      </div>
+
+      <ScoreRow label="KCl Concentration" value={kcl} onChange={setKcl} options={[{value:10,label:"10 mEq/L"},{value:20,label:"20 mEq/L"},{value:30,label:"30 mEq/L"},{value:40,label:"40 mEq/L"}]} />
+
+      {/* Result card — ResultBadge style */}
+      <div style={{
+        marginTop: 16, padding: "14px 16px", borderRadius: 3,
+        background: `rgba(15,153,96,0.06)`, border: `1px solid ${COLORS.success}`,
+      }}>
+        <div style={{ color: COLORS.textMuted, fontSize: 10, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 500 }}>Adjusted Fluid Requirement</div>
+        <div style={{ color: COLORS.success, fontSize: 28, fontWeight: 600, fontFamily: "'IBM Plex Sans', sans-serif", lineHeight: 1.2, whiteSpace: "pre-line" }}>
+          {adjustedHourly.toFixed(1)} mL/hr
+        </div>
+        <div style={{ color: COLORS.success, fontSize: 13, fontWeight: 600, marginTop: 4, fontFamily: "'IBM Plex Sans', sans-serif" }}>{adjustedDaily.toFixed(0)} mL/day</div>
+
+        <div style={{ borderTop: `1px solid ${COLORS.success}`, marginTop: 10, paddingTop: 10, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: COLORS.navy, lineHeight: 1.9, opacity: 0.85 }}>
+          <div>Base ({rateMethod === "hs" ? "H-S" : "4:2:1"}): <span style={{ color: COLORS.success, fontWeight: 600 }}>{rateMethod === "hs" ? `${hsDaily.toFixed(0)} mL/day` : `${Math.round(fourTwoOneHourly)} mL/hr`}</span></div>
+          {insPct !== 0 && <div>× Insensible: <span style={{ color: insPct < 0 ? COLORS.accent : COLORS.danger }}>(1 {insPct > 0 ? "+" : ""}{(insPct*100).toFixed(0)}%) = {(1+insPct).toFixed(2)}</span></div>}
+          {tempPct !== 0 && <div>× Temperature: <span style={{ color: tempPct < 0 ? COLORS.accent : COLORS.danger }}>(1 {tempPct > 0 ? "+" : ""}{(tempPct*100).toFixed(0)}%) = {(1+tempPct).toFixed(2)}</span></div>}
+          {metPct !== 0 && <div>× Metabolic: <span style={{ color: metPct < 0 ? COLORS.accent : COLORS.danger }}>(1 {metPct > 0 ? "+" : ""}{(metPct*100).toFixed(0)}%) = {(1+metPct).toFixed(2)}</span></div>}
+          {(insPct === 0 && tempPct === 0 && metPct === 0) && <div style={{ color: COLORS.textMuted }}>No clinical modifiers applied</div>}
+        </div>
+      </div>
+
+      {/* Delivered vs Requirements */}
+      <div style={{ marginTop: 10, padding: "14px 16px", borderRadius: 3, background: COLORS.surface, border: `1px solid ${COLORS.border}` }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4, marginBottom: 8 }}>
+          <div style={{ ...labelStyle, fontSize: 10 }}></div>
+          <div style={{ ...labelStyle, fontSize: 10, textAlign: "right" }}>REQUIRED</div>
+          <div style={{ ...labelStyle, fontSize: 10, textAlign: "right" }}>DELIVERED</div>
+        </div>
+        <div style={rowStyle}>
+          <div style={labelStyle}>Fluid (mL/day)</div>
+          <div style={reqStyle}>{adjustedDaily.toFixed(0)}</div>
+          <div style={delivStyle(null)}>{selectedDaily.toFixed(0)}</div>
+        </div>
+        <div style={rowStyle}>
+          <div style={labelStyle}>Rate (mL/hr)</div>
+          <div style={reqStyle}>{adjustedHourly.toFixed(1)}</div>
+          <div style={delivStyle(null)}>{selectedHourly.toFixed(1)}</div>
+        </div>
+        <div style={rowStyle}>
+          <div style={labelStyle}>Na (mEq/day)</div>
+          <div style={reqStyle}>{naReqLow}–{naReqHigh}</div>
+          <div style={delivStyle(parseFloat(naDelivered) >= parseFloat(naReqLow) && parseFloat(naDelivered) <= parseFloat(naReqHigh))}>{naDelivered}</div>
+        </div>
+        <div style={rowStyle}>
+          <div style={labelStyle}>K (mEq/day)</div>
+          <div style={reqStyle}>{kReqLow}–{kReqHigh}</div>
+          <div style={delivStyle(parseFloat(kDelivered) >= parseFloat(kReqLow) && parseFloat(kDelivered) <= parseFloat(kReqHigh))}>{kDelivered}</div>
+        </div>
+        <div style={{ ...rowStyle, borderBottom: "none" }}>
+          <div style={labelStyle}>GIR (mg/kg/min)</div>
+          <div style={reqStyle}>3–6</div>
+          <div style={delivStyle(girOk)}>{gir ?? "—"}</div>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 8, fontSize: 10, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, lineHeight: 1.5 }}>
+        Holliday-Segar 1957 · AAP 2018 isotonic recommendation · KCl {kcl} mEq/L
       </div>
     </div>
   );
@@ -2050,7 +2298,7 @@ const CALCULATORS = [
   { id:"bronchiolitis",category:"respiratory", name:"Bronchiolitis Severity",       desc:"Respiratory severity scoring for bronchiolitis",          component: BronchiolitisCalc },
   { id:"asthma",       category:"respiratory", name:"Asthma Severity (PRAM)",       desc:"Pediatric Respiratory Assessment Measure",               component: AsthmaCalc },
   // FEN (Fluids, Electrolytes & Nutrition)
-  { id:"fluid",        category:"fluid",       name:"Maintenance Fluids",           desc:"Holliday-Segar method",                                   component: FluidCalc },
+  { id:"fluid",        category:"fluid",       name:"Maintenance Fluids",           desc:"Holliday-Segar + 4:2:1 · fluid, Na, K, GIR",             component: FluidCalc },
   { id:"burns",        category:"fluid",       name:"Burn Fluid Resuscitation",     desc:"Parkland formula for pediatric burns",                    component: BurnsCalc },
   { id:"dehydration",  category:"fluid",       name:"Dehydration Score",            desc:"Clinical dehydration assessment (WHO/Gorelick)",          component: DehydrationCalc },
   { id:"sodium",       category:"fluid",       name:"Hyponatremia Correction",      desc:"Sodium deficit and correction rate calculation",          component: SodiumCalc },
@@ -2344,7 +2592,7 @@ export default function App() {
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "8px 16px 20px", background: `linear-gradient(transparent, ${COLORS.bg} 40%)`, pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto", display: "flex", justifyContent: "center" }}>
           <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 2, padding: "5px 12px", fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, fontWeight: 500, textAlign: "center" }}>
-            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v5
+            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v6
           </div>
         </div>
       </div>

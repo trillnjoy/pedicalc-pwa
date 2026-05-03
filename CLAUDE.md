@@ -1,93 +1,63 @@
 # PediCalc PWA - Development Context
 
 ## Project Overview
-PediCalc is a progressive web app providing 27 evidence-based pediatric clinical calculators. Built as a single-page React application with Medical Records theme styling, deployed to GitHub Pages at `trillnjoy.github.io/Claude_Artifacts/`.
+PediCalc is a progressive web app providing 26 evidence-based pediatric clinical calculators. Built as a single-page React application with Medical Records theme styling, deployed to GitHub Pages at `trillnjoy.github.io/Claude_Artifacts/`.
 
-## Current State (v4 - May 2026)
+## Current State (v5 - May 2026)
 
-### Recent Changes (v4)
-- **Category restructure** — 12 categories → 8, with clinical sequencing: Neonatal → FEN → Neurologic → Respiratory → Cardiac → Toxicology → Common Rx → Risk Scores
-- **Calculator reassignments** — Bilirubin + Finnegan NAS → Neonatal; COWS + WAT-1 + FLACC → Neurologic; Hyponatremia + U25 eGFR → FEN; Kawasaki → Cardiac; SIRS/Sepsis + NAT Fracture → Risk Scores
-- **Eliminated categories** — Hepatic, Withdrawal, Sepsis/Infection, Renal
-- **Category filter bar** — icon-only 40×40px buttons (Apple HIG compliant), 22px emoji, "ALL" in IBM Plex Mono caps (gold when active)
-- **List row icons** — 40×40px neutral gray boxes (`#f0f1f3` fill, `COLORS.border` border), 22px emoji, left-aligned with filter bar
-- **Header chrome** — gold (`#d4a444`) for secondary text (EMR badge, calculator count, category breadcrumb); white for primary; navy background
-- **Green status dot removed**
-- **Disclaimer** — moved to footer pill; single line replacing previous two-element stack
-- **ScoreRow (all toggle buttons)** — `-apple-system` sans-serif, 15px, `fontWeight: 500`, `white-space: nowrap`, `flex: 1` (equal width, no wrap); unselected: white/`#d0d4d9` border/navy text; selected: `#e8eaed` gray/same border/navy text; no blue in button states; 8px vertical padding; section labels 12px/`fontWeight: 700`/navy
-- **NumberInput (all numeric fields)** — `type="number"` with global CSS spinner suppression; inactive border `#d0d4d9`; focused: 2px navy border; label 12px/700/navy; unit qualifiers: gold `#b8860b`/`fontWeight: 600` for physical units only (mg/dL, kg, weeks, etc.), muted gray for descriptors
-- **Gold unit qualifier rule** — gold only when parenthetical is a physical unit of measure; descriptors/synonyms (COLOR, REFLEX, HEART RATE) remain muted gray
-- **Result card** — color (green/yellow/red) reserved exclusively for result severity; no color elsewhere in calculator UI
+### Recent Changes (v5)
+- **PECARN complete overhaul** — two-tier architecture for both age groups (<2yr and ≥2yr) matching CalACEP/PECARN card
+- **CATCH Head CT Rule removed** — 27 → 26 calculators
+- **ResultBadge** — `detail` prop for bullet lists; `pre-line` score for line breaks
+- **Prematurity Risk** — EGA split into weeks + days fields; `ga = gaWeeks + (gaDays/7)`
+- **Neonatal Hypoglycemia** — Blood Glucose + Age on same row
+- **Acetaminophen Toxicity** — Weight + Hours paired row 1; Level row 2 (Serum mode)
+- **Back button** — ← replaced with ⬅️
+- **Bilirubin** — Level + Age on same row; View Nomogram button; off-scale pulsing arrow
+- **Nomogram scroll** — explicit button trigger only, no eager auto-scroll
 
 ### Architecture
 **Multi-file setup for GitHub Pages:**
 - `index.html` - PWA entry point with runtime JSX transpilation via Babel
-- `PediatricCalc.jsx` - React component (~2130 lines)
-- `sw.js` - Service worker v4 with cache busting
+- `PediatricCalc.jsx` - React component (~2350 lines)
+- `sw.js` - Service worker v5
 - `manifest.json` - PWA configuration
-- `icon-192.png`, `icon-512.png` - App icons (calculator graphic, full-bleed square PNGs)
+- `icon-192.png`, `icon-512.png` - App icons
 
-**Key constraint:** Runtime Babel transpilation at page load. `index.html` fetches `PediatricCalc.jsx`, strips imports, transpiles JSX→JS, then renders. This architecture is fragile — adding complexity to the loading sequence has consistently broken the app.
+**Key constraint:** Runtime Babel transpilation at page load. Fragile — do not add complexity to loading sequence.
 
-### File Locations
-- **Deployment files:** `/mnt/user-data/outputs/`
-- **Stable backups:** `/mnt/user-data/outputs/*.STABLE`
-- **Restore command:** `cp /mnt/user-data/outputs/*.STABLE /mnt/user-data/outputs/`
-
-### Testing Limitations
-- `PediatricCalc.jsx` loads immediately as a direct artifact ✅
-- `index.html` fails in artifacts (no file system for fetch) ❌
-- **Never test index.html in artifacts** — only works on GitHub Pages
+### Testing
+- `PediatricCalc.jsx` as artifact ✅
+- `index.html` in artifacts ❌ (only works on GitHub Pages)
 
 ## Medical Records Theme
-**Color System:**
 ```
 bg: #ffffff
-navy: #1a2332 (header, primary text)
-accent: #0066cc (search border only; not used in calculator UI)
+navy: #1a2332
 surface: #f8f9fb
-border: #d0d9e3
+border (inactive input): #d0d4d9
+border (focused input): 2px navy
 textMuted: #5f6b7c
-textSub: #8a9ba8
-success: #0f9960
-warning: #d9822b
-danger: #db3737
-gold (chrome): #d4a444
-gold (unit labels): #b8860b
+success: #0f9960 / warning: #d9822b / danger: #db3737
+gold (chrome): #d4a444 / gold (unit labels): #b8860b
 ```
 
-**Typography:**
-- UI labels/headers: IBM Plex Sans
-- Data values / result display: IBM Plex Mono
-- Option buttons: `-apple-system` sans-serif (15px)
-- 3px border radius (sharp corners)
-- EHR-grade density
+**Typography:** IBM Plex Sans (UI) · IBM Plex Mono (data/values) · -apple-system (buttons)
 
 ## Critical Safety Features
 
 ### Trailing Zero Handling
-**DANGER:** Original regex `/\.?0+$/` stripped significant zeros (8000→8, causing 1000× dosing errors)
-
 **CORRECT regex:** `(\.\d*?)0+$`
-- Removes trailing zeros ONLY after decimal: `12.50` → `12.5`
 - Preserves whole number zeros: `8000` stays `8000`
+- Test case: Acetaminophen 20kg × 400mg/kg = 8000mg must display as "8000", not "8"
 
-**Applied in:**
-- `NumberInput` component `displayValue`
-- `ResultBadge` component `displayScore`
-- Drug dosing calculator
-
-**Test case:** Acetaminophen 20kg × 400mg/kg = 8000mg must display as "8000", not "8"
-
-## 8 Categories / 27 Calculators
-
-**Sequence (clinical logic: growth → systems → intervention → risk):**
+## 8 Categories / 26 Calculators
 
 | # | Category | Icon | Count | Calculators |
 |---|---|---|---|---|
 | 1 | Neonatal | 👶🏼 | 5 | APGAR, Bhutani Bilirubin, Hypoglycemia, Prematurity, Finnegan NAS |
 | 2 | FEN | 💧 | 5 | Holliday-Segar, Parkland Burns, Dehydration, Hyponatremia, U25 eGFR |
-| 3 | Neurologic | 🧠 | 6 | Pediatric GCS, PECARN, CATCH, COWS, WAT-1, FLACC |
+| 3 | Neurologic | 🧠 | 5 | Pediatric GCS, PECARN, COWS, WAT-1, FLACC |
 | 4 | Respiratory | 🫁 | 2 | Bronchiolitis, PRAM Asthma |
 | 5 | Cardiac | ♥️ | 3 | Wells DVT, Corrected QT, Kawasaki |
 | 6 | Toxicology | ☠️ | 1 | Acetaminophen (Rumack-Matthew) |
@@ -95,104 +65,92 @@ gold (unit labels): #b8860b
 | 8 | Risk Scores | 📊 | 4 | SIRS/Sepsis, NAT Fracture, Readmission, PEWS |
 
 **Visual Nomograms:**
-1. **Acetaminophen toxicity** — 4–24h window, Rumack-Matthew treatment line
-2. **Bhutani hyperbilirubinemia** — Two interactive SVG graphs (risk zones + treatment thresholds), pulsing patient point marker
+1. **Acetaminophen** — Rumack-Matthew; off-scale arrow if level > plot range
+2. **Bhutani** — Two SVG graphs (risk zones + treatment thresholds); pulsing patient point; off-scale red pulsing arrow at correct age x-coordinate if bili > 22 mg/dL
 
 ## Shared UI Components
 
 ### ScoreRow
-All toggle/option button groups across every calculator. Changes here propagate to all 27.
 ```
-label: 12px / fontWeight 700 / navy / uppercase / IBM Plex Sans
-buttons: -apple-system 15px / flex:1 / white-space:nowrap / 8px vertical padding
-unselected: white fill / #d0d4d9 border / navy text
-selected: #e8eaed fill / #d0d4d9 border / navy text
-NO blue anywhere in button states
+label: 12px / 700 / navy / uppercase / IBM Plex Sans
+buttons: -apple-system 15px / flex:1 / white-space:nowrap / 8px padding
+unselected: white / #d0d4d9 border / navy text
+selected: #e8eaed / #d0d4d9 border / navy text — NO blue
 ```
 
 ### NumberInput
-All numeric entry fields. `type="number"` with global CSS spinner suppression.
 ```
-label: 12px / fontWeight 700 / navy / uppercase / IBM Plex Sans
-unit (physical): #b8860b / fontWeight 600
-unit (descriptor): COLORS.textMuted / fontWeight 400
-field inactive: white / #d0d4d9 border
-field focused: white / 2px navy border
-value display: IBM Plex Mono 14px
+label: 12px / 700 / navy / uppercase / IBM Plex Sans
+unit (physical measure): #b8860b / 600 weight
+unit (descriptor/synonym): COLORS.textMuted / 400 weight
+field: white / #d0d4d9 inactive / 2px navy focused
+value: IBM Plex Mono 14px
+enterKeyHint="done" / blur on Enter
 ```
 
-**Physical unit gold rule:** Gold only for units of measure (mg/dL, kg, weeks, bpm, °C, mEq/L, etc.). Descriptors like (COLOR), (REFLEX), (HEART RATE) stay muted gray.
+**Gold unit rule:** Gold only for physical units (mg/dL, kg, weeks, hr, mcg/mL, etc.). NOT for descriptors (COLOR, REFLEX, HEART RATE).
 
 ### ResultBadge
-Color-coded result display. **Color used here only** — not in inputs or buttons.
 ```
-success (green): #0f9960
-warning (orange): #d9822b
-danger (red): #db3737
-```
-
-## Clinical References System
-**CALC_REFERENCES object** contains complete citations for all 27 calculators:
-- Summary, Primary Reference, Guidelines, Disclaimer
-
-**Display:** ℹ️ button in calculator header opens modal with full reference details.
-
-## Known Issues & Fragilities
-
-### iOS Input Behavior
-- `type="number"` with global CSS spinner suppression (`-webkit-appearance: none`) — numeric decimal keyboard on iOS ✅
-- Text selection handles on focus: iOS system behavior, cannot be fully suppressed. Less intrusive with `type="number"` than `type="text"`
-
-### Splash Screen
-- Gold gradient splash (2-second minimum display) implemented in `index.html`
-- All attempts to add animated splash to loading sequence have broken the app
-- **Golden rule:** Replace existing loading screen content, never layer on top
-
-### Service Worker Versioning
-- **Current:** v4 (`pedicalc-v4`)
-- Cache busting: increment version in `sw.js`
-
-### iOS PWA Icon Conventions
-- Full-bleed square PNGs, no transparency
-- System applies squircle mask automatically
-- Safe zone: inset 10% from edges
-- Filenames: `icon-192.png`, `icon-512.png`
-
-## Deployment Workflow
-
-1. Update version in `sw.js` (increment CACHE_NAME)
-2. Upload to GitHub: `index.html`, `PediatricCalc.jsx`, `sw.js`, `manifest.json`, icons
-3. GitHub Actions auto-deploys to Pages
-4. Users get fresh files on next load (cache busted by new service worker)
-
-### Rollback
-```bash
-cp /mnt/user-data/outputs/*.STABLE /mnt/user-data/outputs/
+Props: score, label, color, sublabel, detail (optional)
+score: 28px IBM Plex Sans, white-space: pre-line (\n = line break)
+detail: { title, bullets[] } — rendered below sublabel with divider
 ```
 
-## Development Principles
+### Inline Info Modal Pattern (ℹ)
+- `useState(false)` show/hide per modal
+- Button: transparent, `COLORS.textMuted`, right-justified on label line
+- Modal: fixed scrim, bottom sheet, tap-outside dismiss
+- **Must be placed outside conditional age-group fragments**
 
-### What Works ✅
-- Direct modifications to `PediatricCalc.jsx`
-- Changes to ScoreRow / NumberInput propagate globally
-- Simple CSS/style changes
-- Calculator logic additions/modifications
-- Clinical reference updates
-- Service worker cache version bumps
-- Replacing loading screen content (not layering)
+## PECARN Architecture
 
-### What Breaks Things ❌
-- Adding new HTML layers/overlays to `index.html`
-- CSS animations on loading sequence
-- JavaScript that runs before/during Babel transpilation
-- External module imports (ESM `import` statements)
-- Anything that delays or interferes with the render sequence
+### <2 Years
+**High-risk (4.4%) — any positive = immediate CT:**
+GCS · AMS (ℹ) [same row] · Palpable Skull Fracture
 
-### Golden Rule
-**The app loads fast (<1 second). Don't add complexity to the loading sequence. If you want something during load, REPLACE the existing loading screen content — don't layer on top.**
+**Intermediate (0.9%):**
+Scalp Hematoma (4 options) · LOC · Not Acting Normally + Severe Mechanism (ℹ) [paired]
+
+**Low (<0.02%):** CT NOT Indicated (Observe)
+
+### ≥2 Years
+**High-risk (4.3%) — any positive = immediate CT:**
+GCS · AMS (ℹ) [same row] · Signs of Basilar Skull Fracture
+
+**Intermediate (0.8%):**
+Vomiting + Severe Headache [paired] · LOC + Severe Mechanism (ℹ) [paired]
+
+**Low (<0.05%):** CT NOT Indicated (Observe)
+
+**Notes:**
+- Severe Mechanism fall height: >3 ft (<2yr) / >5 ft (≥2yr) — modal reads `ageGroup` dynamically
+- <2yr intermediate detail includes "Very young infant (< 3 months old)"; ≥2yr does not
+- Both modals (AMS, Mech) are outside age fragments — fire for both groups
+
+## Emoji Glossary
+See memory "PediCalc emoji glossary A/B". In-use: 👶🏼 Neonatal · 💧 FEN · 🧠 Neurologic · 🫁 Respiratory · ♥️ Cardiac · ☠️ Toxicology · 💊 Common Rx · 📊 Risk Scores · ⬅️ Back · ℹ️ Information
+
+## Deployment
+
+### Workflow
+1. Increment CACHE_NAME in `sw.js`
+2. Bump version string in JSX footer pill
+3. Upload: `index.html` + `PediatricCalc.jsx` + `sw.js` + `manifest.json`
+4. **Always redeploy `index.html` with `sw.js`** even if unchanged — required for cache sync
+
+### Current versions
+- Service worker: `pedicalc-v5`
+- Footer pill: `v5`
+
+### What Works ✅ / Breaks ❌
+✅ Direct JSX edits · ScoreRow/NumberInput changes (global) · SW version bumps · Replacing splash content
+❌ New HTML layers · CSS animations on load · ESM imports · Anything before/during Babel transpilation
+
+**Golden Rule:** The app loads fast (<1s). Don't add complexity to the loading sequence.
 
 ## User Background
-Troy is a pediatrician (MD) based in Los Angeles with interests in clinical education, health informatics, and point-of-care tools. Values: infrastructure he owns (no third-party tokens, no freemium models), explicit protocols, epistemically humble approaches. Lifelong reader, poet, translator, printmaker.
+Troy is a pediatrician (MD) in Los Angeles. Values infrastructure he owns — no third-party tokens, no freemium models. Explicit protocols, epistemically humble approaches.
 
 ---
-**Last Updated:** May 2, 2026 (v4 — UI overhaul: category restructure, ScoreRow/NumberInput global redesign, gold chrome, filter bar)
+**Last Updated:** May 2, 2026 · v5

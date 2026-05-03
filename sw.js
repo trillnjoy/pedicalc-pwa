@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v4'; // v4 — UI overhaul May 2026
+const CACHE_NAME = 'pedicalc-v5'; // v5 — PECARN overhaul, calculator refinements May 2026
 const urlsToCache = [
   './',
   './index.html',

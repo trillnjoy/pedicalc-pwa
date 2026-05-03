@@ -135,12 +135,6 @@ const CALC_REFERENCES = {
     guidelines: "CHEST Guidelines on Antithrombotic Therapy in Neonates and Children (2012)",
     summary: "Score <1: Low probability. Score 1-2: Moderate probability. Score ≥3: High probability. Use with D-dimer and compression ultrasound for diagnostic workup."
   },
-  catch: {
-    title: "CATCH Head CT Rule (Canadian Assessment of Tomography for Childhood Head Injury)",
-    reference: "Osmond MH, Klassen TP, Wells GA, et al. CATCH: a clinical decision rule for the use of computed tomography in children with minor head injury. CMAJ. 2010;182(4):341-348.",
-    guidelines: "Validated in Canadian emergency departments, ages 0-16 years",
-    summary: "High-risk factors (GCS <15 at 2h, suspected skull fracture, worsening headache/vomiting) predict need for neurologic intervention (~4% risk). Medium-risk factors predict any brain injury on CT."
-  },
   bronchiolitis: {
     title: "Bronchiolitis Severity Assessment",
     reference: "Compiled from multiple validated scores including Respiratory Distress Assessment Instrument (RDAI) and Wang Bronchiolitis Score",
@@ -244,13 +238,13 @@ function ScoreRow({ label, options, value, onChange }) {
 
 function NumberInput({ label, value, onChange, min, max, step = 1, unit }) {
   const [focused, setFocused] = useState(false);
+  const inputRef = useRef(null);
   const displayValue = (() => {
     if (value === 0) return '0';
     const str = value.toString();
     return str.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
   })();
 
-  // Gold only for physical units of measure, not descriptors
   const physicalUnitPattern = /^(mg\/dL|mg\/kg|mcg\/mL|mEq\/L|mmol\/L|mg\/L|g\/dL|kg|grams|cm|bpm|ms|%|°C|°F|hours?( of life)?|days?|weeks?|years?( ≤\d+)?|breaths\/min|×10³\/μL|hr|mL|L|IU\/L|U\/L)$/i;
   const isPhysicalUnit = unit && physicalUnitPattern.test(unit.trim());
 
@@ -260,8 +254,10 @@ function NumberInput({ label, value, onChange, min, max, step = 1, unit }) {
         {label}{unit && <span style={{ color: isPhysicalUnit ? "#b8860b" : COLORS.textMuted, fontWeight: 600 }}> ({unit})</span>}
       </div>
       <input
+        ref={inputRef}
         type="number"
         inputMode="decimal"
+        enterKeyHint="done"
         value={displayValue}
         min={min}
         max={max}
@@ -269,6 +265,12 @@ function NumberInput({ label, value, onChange, min, max, step = 1, unit }) {
         onChange={(e) => {
           const val = e.target.value;
           onChange(val === '' ? 0 : parseFloat(val) || 0);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.keyCode === 13) {
+            e.preventDefault();
+            inputRef.current?.blur();
+          }
         }}
         onFocus={(e) => {
           setFocused(true);
@@ -294,8 +296,7 @@ function NumberInput({ label, value, onChange, min, max, step = 1, unit }) {
   );
 }
 
-function ResultBadge({ score, label, color, sublabel }) {
-  // Strip trailing zeros ONLY after decimal point
+function ResultBadge({ score, label, color, sublabel, detail }) {
   const displayScore = typeof score === 'number' 
     ? score.toString().replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')
     : score;
@@ -310,9 +311,20 @@ function ResultBadge({ score, label, color, sublabel }) {
       textAlign: "left",
     }}>
       <div style={{ color: COLORS.textMuted, fontSize: 10, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 500 }}>Result</div>
-      <div style={{ color, fontSize: 28, fontWeight: 600, fontFamily: "'IBM Plex Mono', monospace", lineHeight: 1.1 }}>{displayScore}</div>
+      <div style={{ color, fontSize: 28, fontWeight: 600, fontFamily: "'IBM Plex Sans', sans-serif", lineHeight: 1.2, whiteSpace: "pre-line" }}>{displayScore}</div>
       <div style={{ color, fontSize: 13, fontWeight: 600, marginTop: 4, fontFamily: "'IBM Plex Sans', sans-serif" }}>{label}</div>
       {sublabel && <div style={{ color: COLORS.textMuted, fontSize: 11, marginTop: 6, fontFamily: "'IBM Plex Mono', monospace", lineHeight: 1.4 }}>{sublabel}</div>}
+      {detail && (
+        <div style={{ marginTop: 10, borderTop: `1px solid ${color}`, paddingTop: 10, opacity: 0.85 }}>
+          {detail.title && <div style={{ color: COLORS.navy, fontSize: 13, fontFamily: "'IBM Plex Sans', sans-serif", fontWeight: 500, marginBottom: 6 }}>{detail.title}</div>}
+          {detail.bullets && detail.bullets.map((b, i) => (
+            <div key={i} style={{ display: "flex", gap: 8, marginBottom: 5, alignItems: "flex-start" }}>
+              <div style={{ width: 4, height: 4, borderRadius: "50%", background: COLORS.navy, flexShrink: 0, marginTop: 6 }} />
+              <div style={{ color: COLORS.navy, fontSize: 13, fontFamily: "'IBM Plex Sans', sans-serif", lineHeight: 1.5 }}>{b}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -495,6 +507,15 @@ function AcetaminophenCalc() {
   const [level, setLevel] = useState(0);
   const [hours, setHours] = useState(4);
   const [mode, setMode] = useState("dose");
+  const graphRef = useRef(null);
+
+  const showNomogram = mode === "level" && hours >= 4 && hours <= 24 && level > 0;
+
+  const scrollToGraph = () => {
+    if (graphRef.current) {
+      graphRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
   
   const rumackThreshold = (h) => {
     if (h < 4) return null;
@@ -637,10 +658,10 @@ function AcetaminophenCalc() {
   return (
     <div>
       <ScoreRow label="Assessment Mode" value={mode} onChange={setMode} options={[{value:"dose",label:"Ingestion Dose"},{value:"level",label:"Serum Level (Rumack)"}]} />
-      <NumberInput label="Patient Weight" value={weight} onChange={setWeight} min={1} max={150} unit="kg" />
-      
+
       {mode === "dose" && (
         <>
+          <NumberInput label="Patient Weight" value={weight} onChange={setWeight} min={1} max={150} unit="kg" />
           <NumberInput label="Dose Ingested" value={dose} onChange={setDose} min={0} max={500} step={0.1} unit="mg/kg" />
           <div style={{marginTop:20,padding:"18px 20px",borderRadius:14,background:COLORS.card,border:`1.5px solid ${COLORS.border}`}}>
             <div style={{color:COLORS.textSub,fontSize:12,fontFamily:"'DM Mono',monospace",marginBottom:8}}>DOSE ASSESSMENT</div>
@@ -661,11 +682,23 @@ function AcetaminophenCalc() {
       
       {mode === "level" && (
         <>
-          <NumberInput label="Hours Post-Ingestion" value={hours} onChange={setHours} min={1} max={24} unit="hr" />
-          <NumberInput label="Serum Acetaminophen Level" value={level} onChange={setLevel} min={0} max={300} step={1} unit="mcg/mL" />
-          
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 1 }}><NumberInput label="Patient Weight" value={weight} onChange={setWeight} min={1} max={150} unit="kg" /></div>
+            <div style={{ flex: 1 }}><NumberInput label="Hours Post-Ingestion" value={hours} onChange={setHours} min={1} max={24} unit="hr" /></div>
+          </div>
+          <NumberInput label="Acetaminophen Level" value={level} onChange={setLevel} min={0} max={300} step={1} unit="mcg/mL" />
+
+          {showNomogram && (
+            <button
+              onClick={scrollToGraph}
+              style={{ width: "100%", marginTop: 8, marginBottom: 4, padding: "10px", borderRadius: 3, border: `1px solid ${COLORS.navy}`, background: COLORS.navy, color: "#ffffff", fontSize: 14, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", fontWeight: 600, cursor: "pointer" }}
+            >
+              View Nomogram ↓
+            </button>
+          )}
+
           {/* Show nomogram when valid data entered */}
-          {hours >= 4 && hours <= 24 && level > 0 && <NomogramGraph />}
+          {showNomogram && <div ref={graphRef}><NomogramGraph /></div>}
           
           {/* Results */}
           {rumackThreshold(hours) && level > 0 && (
@@ -720,6 +753,15 @@ function BilirubinCalc() {
   const [age_hrs, setAgeHrs] = useState(48);
   const [gestage, setGestage] = useState(38);
   const [risk, setRisk] = useState("low");
+  const graphRef = useRef(null);
+
+  const showGraph = bili > 0 && age_hrs >= 12;
+
+  const scrollToGraph = () => {
+    if (graphRef.current) {
+      graphRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
   
   // Bhutani percentile curves (approximated from nomogram)
   const bhutaniCurves = {
@@ -811,6 +853,7 @@ function BilirubinCalc() {
     const patientX = age_hrs <= 144 ? xScale(age_hrs) : null;
     const patientY = bili <= 22 ? yScale(bili) : null;
     const showPoint = patientX !== null && patientY !== null && bili > 0;
+    const showArrow = patientX !== null && bili > 22;
     
     return (
       <div style={{marginTop:16,padding:"16px",borderRadius:14,background:COLORS.card,border:`1.5px solid ${COLORS.border}`}}>
@@ -892,6 +935,28 @@ function BilirubinCalc() {
               <text x={patientX} y={patientY-15} textAnchor="middle" fontSize="11" fontWeight="700" 
                     fill={zoneColor} fontFamily="'Sora', sans-serif">
                 Patient
+              </text>
+            </g>
+          )}
+
+          {/* Off-scale arrow — bili > 22 mg/dL */}
+          {showArrow && (
+            <g>
+              {/* Arrow shaft — shorter */}
+              <line x1={patientX} y1={padding.top + 14} x2={patientX} y2={padding.top + 5}
+                    stroke={COLORS.danger} strokeWidth="2.5" />
+              {/* Arrowhead with pulse */}
+              <polygon
+                points={`${patientX},${padding.top} ${patientX - 5},${padding.top + 8} ${patientX + 5},${padding.top + 8}`}
+                fill={COLORS.danger}
+                opacity="0.9"
+              >
+                <animate attributeName="opacity" values="0.9;0.3;0.9" dur="1.5s" repeatCount="indefinite" />
+              </polygon>
+              {/* Value label near tail */}
+              <text x={patientX} y={padding.top + 26} textAnchor="middle" fontSize="10" fontWeight="700"
+                    fill={COLORS.danger} fontFamily="'DM Mono', monospace">
+                {bili}
               </text>
             </g>
           )}
@@ -1049,13 +1114,24 @@ function BilirubinCalc() {
   
   return (
     <div>
-      <NumberInput label="Total Serum Bilirubin" value={bili} onChange={setBili} min={0} max={35} step={0.1} unit="mg/dL" />
-      <NumberInput label="Age" value={age_hrs} onChange={setAgeHrs} min={1} max={168} unit="hours of life" />
+      <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ flex: 1 }}><NumberInput label="Bilirubin" value={bili} onChange={setBili} min={0} max={35} step={0.1} unit="mg/dL" /></div>
+        <div style={{ flex: 1 }}><NumberInput label="Age" value={age_hrs} onChange={setAgeHrs} min={1} max={168} unit="hours of life" /></div>
+      </div>
       <NumberInput label="Gestational Age at Birth" value={gestage} onChange={setGestage} min={35} max={42} unit="weeks" />
       <ScoreRow label="Risk Factors" value={risk} onChange={setRisk} options={[{value:"low",label:"Low (no risk factors)"},{value:"medium",label:"Medium"},{value:"high",label:"High (DAT+, isoimmune)"}]} />
+
+      {showGraph && (
+        <button
+          onClick={scrollToGraph}
+          style={{ width: "100%", marginTop: 8, marginBottom: 4, padding: "10px", borderRadius: 3, border: `1px solid ${COLORS.navy}`, background: COLORS.navy, color: "#ffffff", fontSize: 14, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", fontWeight: 600, cursor: "pointer" }}
+        >
+          View Nomogram ↓
+        </button>
+      )}
       
-      {bili > 0 && age_hrs >= 12 && (
-        <>
+      {showGraph && (
+        <div ref={graphRef}>
           {/* Bhutani Risk Zones Graph */}
           <BhutaniRiskZones />
           
@@ -1108,7 +1184,7 @@ function BilirubinCalc() {
               ⚠ TSB ≥25 mg/dL — Approaching exchange threshold. Urgent evaluation required.
             </div>
           )}
-        </>
+        </div>
       )}
       
       {bili > 0 && age_hrs < 12 && (
@@ -1177,40 +1253,206 @@ function PEWSCalc() {
 function PECARNCalc() {
   const [ageGroup, setAgeGroup] = useState("older");
   const [vals, setVals] = useState({
-    gcs:null, ams:null, scalp:null, loss:null, history:null, severe_mech:null,
+    gcs:null, ams:null, skull:null, scalp:null, loss:null, history:null, severe_mech:null,
     basal:null, vomit:null, ha:null
   });
   const set = (k,v) => setVals(p=>({...p,[k]:v}));
-  
-  const highRisk = ageGroup === "younger"
-    ? (vals.gcs===1 || vals.ams===1 || vals.scalp===2 || vals.loss===1 || vals.history===1 || vals.severe_mech===1)
-    : (vals.gcs===1 || vals.ams===1 || vals.loss===1 || vals.vomit===1 || severe(vals) || vals.basal===1);
-  
-  function severe(v) { return v.severe_mech===1 || v.ha===1; }
-  
-  const filled = Object.values(vals).filter(v=>v!==null).length >= 5;
-  const color = highRisk ? COLORS.danger : COLORS.success;
-  const label = highRisk ? "CT Recommended" : "CT NOT Required (Low Risk)";
-  
+  const [showMechInfo, setShowMechInfo] = useState(false);
+  const [showAMSInfo, setShowAMSInfo] = useState(false);
+
+  // <2 years: high-risk tier (any one = CT Recommended)
+  const highRiskYounger = vals.gcs === "low" || vals.ams === "yes" || vals.skull === "yes";
+
+  // <2 years: intermediate tier (shared decision-making)
+  const intermediateYounger = !highRiskYounger && (
+    vals.scalp === "small" || vals.scalp === "large" || vals.loss === "yes" || vals.history === "yes" || vals.severe_mech === "yes"
+  );
+
+  // ≥2 years: high-risk tier (any one = CT)
+  const highRiskOlder = vals.gcs === "low" || vals.ams === "yes" || vals.basal === "yes";
+
+  // ≥2 years: intermediate tier
+  const intermediateOlder = !highRiskOlder && (
+    vals.vomit === "yes" || vals.loss === "yes" || vals.ha === "yes" || vals.severe_mech === "yes"
+  );
+
+  const highRisk = ageGroup === "younger" ? highRiskYounger : highRiskOlder;
+  const intermediate = ageGroup === "younger" ? intermediateYounger : intermediateOlder;
+
+  const youngerFilled = vals.gcs !== null && vals.ams !== null && vals.skull !== null &&
+    vals.scalp !== null && vals.loss !== null && vals.history !== null && vals.severe_mech !== null;
+  const olderFilled = vals.gcs !== null && vals.ams !== null && vals.basal !== null &&
+    vals.vomit !== null && vals.loss !== null && vals.ha !== null && vals.severe_mech !== null;
+  const filled = ageGroup === "younger" ? youngerFilled : olderFilled;
+
+  const showResult = ageGroup === "younger"
+    ? (highRiskYounger || youngerFilled)
+    : (highRiskOlder || olderFilled);
+
+  const score = highRisk ? "CT Recommended" : intermediate ? "Observation vs. CT\nUsing shared decision-making" : "CT NOT Indicated (Observe)";
+  const color = highRisk ? COLORS.danger : intermediate ? COLORS.warning : COLORS.success;
+  const label = null;
+  const sublabel = ageGroup === "younger"
+    ? (highRisk ? "ciTBI risk 4.4% · PECARN 2009" : intermediate ? "ciTBI risk 0.9% · PECARN 2009" : "ciTBI risk <0.02% · PECARN 2009")
+    : (highRisk ? "ciTBI risk 4.3% · PECARN 2009" : intermediate ? "ciTBI risk 0.8% · PECARN 2009" : "ciTBI risk <0.05% · PECARN 2009");
+
+  const youngerDetail = intermediate && ageGroup === "younger" ? {
+    title: "Clinical factors to guide decision-making:",
+    bullets: [
+      "Multiple vs. isolated factors",
+      "Worsening findings (AMS, H/A, vomiting) during observation",
+      "Physician experience",
+      "Parental preference",
+      "Very young infant (< 3 months old)",
+    ]
+  } : null;
+  const olderDetail = intermediate && ageGroup === "older" ? {
+    title: "Clinical factors to guide decision-making:",
+    bullets: [
+      "Multiple vs. isolated factors",
+      "Worsening findings during observation (AMS, headache, vomiting)",
+      "Physician experience",
+      "Parental preference",
+    ]
+  } : null;
+  const detail = ageGroup === "younger" ? youngerDetail : olderDetail;
+
   return (
     <div>
-      <ScoreRow label="Age Group" value={ageGroup} onChange={setAgeGroup} options={[{value:"younger",label:"<2 years"},{value:"older",label:"≥2 years"}]} />
-      <ScoreRow label="GCS" value={vals.gcs} onChange={v=>set("gcs",v)} options={[{value:0,label:"0 — GCS 15"},{value:1,label:"1 — GCS 14 or <15"}]} />
-      <ScoreRow label="Altered Mental Status" value={vals.ams} onChange={v=>set("ams",v)} options={[{value:0,label:"0 — No"},{value:1,label:"1 — Yes (agitation/slow/repetitive)"}]} />
+      <ScoreRow label="Age Group" value={ageGroup} onChange={v => { setAgeGroup(v); setVals({gcs:null,ams:null,skull:null,scalp:null,loss:null,history:null,severe_mech:null,basal:null,vomit:null,ha:null}); }} options={[{value:"younger",label:"<2 years"},{value:"older",label:"≥2 years"}]} />
+
       {ageGroup === "younger" && <>
-        <ScoreRow label="Scalp Hematoma" value={vals.scalp} onChange={v=>set("scalp",v)} options={[{value:0,label:"0 — None/Frontal"},{value:1,label:"1 — Small non-frontal"},{value:2,label:"2 — Large non-frontal"}]} />
-        <ScoreRow label="Loss of Consciousness" value={vals.loss} onChange={v=>set("loss",v)} options={[{value:0,label:"0 — No or <5 sec"},{value:1,label:"1 — ≥5 sec"}]} />
-        <ScoreRow label="Not Acting Normally per Parent" value={vals.history} onChange={v=>set("history",v)} options={[{value:0,label:"0 — No"},{value:1,label:"1 — Yes"}]} />
-        <ScoreRow label="Severe Mechanism" value={vals.severe_mech} onChange={v=>set("severe_mech",v)} options={[{value:0,label:"0 — No"},{value:1,label:"1 — Yes (MVC/fall >3ft)"}]} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ flex: 1 }}><ScoreRow label="GCS" value={vals.gcs} onChange={v=>set("gcs",v)} options={[{value:"normal",label:"15"},{value:"low",label:"14 or less"}]} /></div>
+          <div style={{ flex: 1 }}>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+                <div style={{ color: COLORS.navy, fontSize: 12, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>AMS</div>
+                <button onClick={() => setShowAMSInfo(true)} style={{ background: "transparent", border: "none", cursor: "pointer", color: COLORS.textMuted, fontSize: 14, lineHeight: 1, padding: "0 0 0 4px" }}>ℹ</button>
+              </div>
+              <div style={{ display: "flex", gap: 4 }}>
+                {[{value:"no",label:"No"},{value:"yes",label:"Yes"}].map(opt => (
+                  <button key={opt.value} onClick={() => set("ams", opt.value)} style={{ flex: 1, padding: "8px 6px", borderRadius: 3, border: "1px solid #d0d4d9", background: vals.ams === opt.value ? "#e8eaed" : COLORS.bg, color: COLORS.navy, fontSize: 15, cursor: "pointer", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", fontWeight: 500, whiteSpace: "nowrap" }}>{opt.label}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        <ScoreRow label="Palpable Skull Fracture" value={vals.skull} onChange={v=>set("skull",v)} options={[{value:"no",label:"No"},{value:"yes",label:"Yes"}]} />
+        <ScoreRow label="Scalp Hematoma" value={vals.scalp} onChange={v=>set("scalp",v)} options={[{value:"none",label:"None"},{value:"frontal",label:"Frontal"},{value:"small",label:"S Non-Frontal"},{value:"large",label:"L Non-Frontal"}]} />
+        <ScoreRow label="Loss of Consciousness" value={vals.loss} onChange={v=>set("loss",v)} options={[{value:"no",label:"No or <5 sec"},{value:"yes",label:"≥5 sec"}]} />
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ flex: 1 }}><ScoreRow label="Not Acting Normally" value={vals.history} onChange={v=>set("history",v)} options={[{value:"no",label:"No"},{value:"yes",label:"Yes"}]} /></div>
+          <div style={{ flex: 1 }}>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+                <div style={{ color: COLORS.navy, fontSize: 12, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>Severe Mechanism</div>
+                <button onClick={() => setShowMechInfo(true)} style={{ background: "transparent", border: "none", cursor: "pointer", color: COLORS.textMuted, fontSize: 14, lineHeight: 1, padding: "0 0 0 4px" }}>ℹ</button>
+              </div>
+              <div style={{ display: "flex", gap: 4 }}>
+                {[{value:"no",label:"No"},{value:"yes",label:"Yes"}].map(opt => (
+                  <button key={opt.value} onClick={() => set("severe_mech", opt.value)} style={{ flex: 1, padding: "8px 6px", borderRadius: 3, border: "1px solid #d0d4d9", background: vals.severe_mech === opt.value ? "#e8eaed" : COLORS.bg, color: COLORS.navy, fontSize: 15, cursor: "pointer", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", fontWeight: 500, whiteSpace: "nowrap" }}>{opt.label}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
       </>}
+
       {ageGroup === "older" && <>
-        <ScoreRow label="Loss of Consciousness" value={vals.loss} onChange={v=>set("loss",v)} options={[{value:0,label:"0 — No"},{value:1,label:"1 — Yes"}]} />
-        <ScoreRow label="Vomiting" value={vals.vomit} onChange={v=>set("vomit",v)} options={[{value:0,label:"0 — No"},{value:1,label:"1 — Yes"}]} />
-        <ScoreRow label="Severe Mechanism" value={vals.severe_mech} onChange={v=>set("severe_mech",v)} options={[{value:0,label:"0 — No"},{value:1,label:"1 — Yes (MVC/fall >5ft)"}]} />
-        <ScoreRow label="Severe Headache" value={vals.ha} onChange={v=>set("ha",v)} options={[{value:0,label:"0 — No"},{value:1,label:"1 — Yes"}]} />
-        <ScoreRow label="Signs of Basilar Skull Fx" value={vals.basal} onChange={v=>set("basal",v)} options={[{value:0,label:"0 — No"},{value:1,label:"1 — Yes"}]} />
+        {/* HIGH-RISK: GCS + AMS on same row */}
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ flex: 1 }}><ScoreRow label="GCS" value={vals.gcs} onChange={v=>set("gcs",v)} options={[{value:"normal",label:"15"},{value:"low",label:"14 or less"}]} /></div>
+          <div style={{ flex: 1 }}>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+                <div style={{ color: COLORS.navy, fontSize: 12, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>AMS</div>
+                <button onClick={() => setShowAMSInfo(true)} style={{ background: "transparent", border: "none", cursor: "pointer", color: COLORS.textMuted, fontSize: 14, lineHeight: 1, padding: "0 0 0 4px" }}>ℹ</button>
+              </div>
+              <div style={{ display: "flex", gap: 4 }}>
+                {[{value:"no",label:"No"},{value:"yes",label:"Yes"}].map(opt => (
+                  <button key={opt.value} onClick={() => set("ams", opt.value)} style={{ flex: 1, padding: "8px 6px", borderRadius: 3, border: "1px solid #d0d4d9", background: vals.ams === opt.value ? "#e8eaed" : COLORS.bg, color: COLORS.navy, fontSize: 15, cursor: "pointer", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", fontWeight: 500, whiteSpace: "nowrap" }}>{opt.label}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        <ScoreRow label="Signs of Basilar Skull Fracture" value={vals.basal} onChange={v=>set("basal",v)} options={[{value:"no",label:"No"},{value:"yes",label:"Yes"}]} />
+
+        {/* INTERMEDIATE */}
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ flex: 1 }}><ScoreRow label="Vomiting" value={vals.vomit} onChange={v=>set("vomit",v)} options={[{value:"no",label:"No"},{value:"yes",label:"Yes"}]} /></div>
+          <div style={{ flex: 1 }}><ScoreRow label="Severe Headache" value={vals.ha} onChange={v=>set("ha",v)} options={[{value:"no",label:"No"},{value:"yes",label:"Yes"}]} /></div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ flex: 1 }}><ScoreRow label="Loss of Consciousness" value={vals.loss} onChange={v=>set("loss",v)} options={[{value:"no",label:"No"},{value:"yes",label:"Yes"}]} /></div>
+          <div style={{ flex: 1 }}>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+                <div style={{ color: COLORS.navy, fontSize: 12, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>Severe Mechanism</div>
+                <button onClick={() => setShowMechInfo(true)} style={{ background: "transparent", border: "none", cursor: "pointer", color: COLORS.textMuted, fontSize: 14, lineHeight: 1, padding: "0 0 0 4px" }}>ℹ</button>
+              </div>
+              <div style={{ display: "flex", gap: 4 }}>
+                {[{value:"no",label:"No"},{value:"yes",label:"Yes"}].map(opt => (
+                  <button key={opt.value} onClick={() => set("severe_mech", opt.value)} style={{ flex: 1, padding: "8px 6px", borderRadius: 3, border: "1px solid #d0d4d9", background: vals.severe_mech === opt.value ? "#e8eaed" : COLORS.bg, color: COLORS.navy, fontSize: 15, cursor: "pointer", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", fontWeight: 500, whiteSpace: "nowrap" }}>{opt.label}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </>}
-      {filled && <ResultBadge score={label} label={highRisk ? "ciTBI risk elevated" : "ciTBI risk <1%"} color={color} sublabel="PECARN 2009 • ciTBI = clinically important TBI" />}
+
+      {/* AMS Info Modal — shared across both age groups */}
+      {showAMSInfo && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(26,35,50,0.85)", zIndex: 200, display: "flex", alignItems: "flex-end", animation: "fadeUp 0.2s ease" }} onClick={() => setShowAMSInfo(false)}>
+          <div style={{ width: "100%", maxWidth: 430, margin: "0 auto", background: COLORS.bg, borderTopLeftRadius: 12, borderTopRightRadius: 12, padding: "20px", boxShadow: "0 -4px 20px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 16 }}>
+              <div>
+                <div style={{ color: COLORS.textMuted, fontSize: 10, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 500, marginBottom: 4 }}>PECARN · Altered Mental Status</div>
+                <div style={{ color: COLORS.navy, fontSize: 16, fontWeight: 600, fontFamily: "'IBM Plex Sans', sans-serif" }}>Signs of AMS</div>
+              </div>
+              <button onClick={() => setShowAMSInfo(false)} style={{ background: "transparent", border: "none", color: COLORS.textMuted, fontSize: 24, cursor: "pointer", padding: 0, lineHeight: 1 }}>×</button>
+            </div>
+            {["Agitation", "Somnolence", "Slow response", "Repetitive questioning"].map((item, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, marginBottom: 10, alignItems: "flex-start" }}>
+                <div style={{ width: 5, height: 5, borderRadius: "50%", background: COLORS.navy, flexShrink: 0, marginTop: 6 }} />
+                <div style={{ color: COLORS.navy, fontSize: 14, fontFamily: "'IBM Plex Sans', sans-serif", lineHeight: 1.5 }}>{item}</div>
+              </div>
+            ))}
+            <div style={{ marginTop: 12, color: COLORS.textMuted, fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>PECARN 2009 · Kuppermann et al.</div>
+          </div>
+        </div>
+      )}
+
+      {/* Severe Mechanism Info Modal — shared across both age groups */}
+      {showMechInfo && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(26,35,50,0.85)", zIndex: 200, display: "flex", alignItems: "flex-end", animation: "fadeUp 0.2s ease" }} onClick={() => setShowMechInfo(false)}>
+          <div style={{ width: "100%", maxWidth: 430, margin: "0 auto", background: COLORS.bg, borderTopLeftRadius: 12, borderTopRightRadius: 12, padding: "20px", boxShadow: "0 -4px 20px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: 16 }}>
+              <div>
+                <div style={{ color: COLORS.textMuted, fontSize: 10, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 500, marginBottom: 4 }}>PECARN · Severe Mechanism</div>
+                <div style={{ color: COLORS.navy, fontSize: 16, fontWeight: 600, fontFamily: "'IBM Plex Sans', sans-serif" }}>Examples of High-Impact Mechanism</div>
+              </div>
+              <button onClick={() => setShowMechInfo(false)} style={{ background: "transparent", border: "none", color: COLORS.textMuted, fontSize: 24, cursor: "pointer", padding: 0, lineHeight: 1 }}>×</button>
+            </div>
+            {[
+              ageGroup === "younger" ? "Fall > 3 ft" : "Fall > 5 ft",
+              "MVA with ejection, rollover, or fatality",
+              "Bike or pedestrian struck by vehicle without helmet",
+              "Struck by high-impact object",
+            ].map((item, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, marginBottom: 10, alignItems: "flex-start" }}>
+                <div style={{ width: 5, height: 5, borderRadius: "50%", background: COLORS.navy, flexShrink: 0, marginTop: 6 }} />
+                <div style={{ color: COLORS.navy, fontSize: 14, fontFamily: "'IBM Plex Sans', sans-serif", lineHeight: 1.5 }}>{item}</div>
+              </div>
+            ))}
+            <div style={{ marginTop: 12, color: COLORS.textMuted, fontSize: 11, fontFamily: "'IBM Plex Mono', monospace" }}>PECARN 2009 · Kuppermann et al.</div>
+          </div>
+        </div>
+      )}
+
+      {showResult && <ResultBadge score={score} label={label} color={color} sublabel={sublabel} detail={detail} />}
     </div>
   );
 }
@@ -1467,29 +1709,6 @@ function DVTCalc() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // CALCULATOR: CATCH (Head CT Rule — Canadian)
 // ═══════════════════════════════════════════════════════════════════════════════
-function CATCHCalc() {
-  const [vals, setVals] = useState({ gcs:null, skull_open:null, worsen:null, skull_sign:null, hematoma:null, dangerous:null });
-  const set = (k,v) => setVals(p=>({...p,[k]:v}));
-  const high_risk = vals.gcs===1 || vals.skull_open===1 || vals.worsen===1;
-  const medium_risk = vals.skull_sign===1 || vals.hematoma===1 || vals.dangerous===1;
-  const filled = Object.values(vals).every(v=>v!==null);
-  const color = high_risk ? COLORS.danger : medium_risk ? COLORS.warning : COLORS.success;
-  const label = high_risk ? "HIGH RISK — CT Required" : medium_risk ? "MEDIUM RISK — CT Recommended" : "Low Risk — CT Likely Not Required";
-  return (
-    <div>
-      <div style={{color:COLORS.textMuted,fontSize:11,marginBottom:10,fontFamily:"'DM Mono',monospace"}}>HIGH RISK FACTORS</div>
-      <ScoreRow label="GCS Score <15 at 2 hours" value={vals.gcs} onChange={v=>set("gcs",v)} options={[{value:0,label:"0 — No"},{value:1,label:"1 — Yes"}]} />
-      <ScoreRow label="Suspected Open/Depressed Skull Fx" value={vals.skull_open} onChange={v=>set("skull_open",v)} options={[{value:0,label:"0 — No"},{value:1,label:"1 — Yes"}]} />
-      <ScoreRow label="Worsening Headache or Vomiting" value={vals.worsen} onChange={v=>set("worsen",v)} options={[{value:0,label:"0 — No"},{value:1,label:"1 — Yes"}]} />
-      <div style={{color:COLORS.textMuted,fontSize:11,marginBottom:10,marginTop:16,fontFamily:"'DM Mono',monospace"}}>MEDIUM RISK FACTORS</div>
-      <ScoreRow label="Signs of Basilar Skull Fx" value={vals.skull_sign} onChange={v=>set("skull_sign",v)} options={[{value:0,label:"0 — No"},{value:1,label:"1 — Yes"}]} />
-      <ScoreRow label="Large Boggy Scalp Hematoma" value={vals.hematoma} onChange={v=>set("hematoma",v)} options={[{value:0,label:"0 — No"},{value:1,label:"1 — Yes"}]} />
-      <ScoreRow label="Dangerous Mechanism" value={vals.dangerous} onChange={v=>set("dangerous",v)} options={[{value:0,label:"0 — No"},{value:1,label:"1 — MVC/Fall >3ft/Bike w/o helmet"}]} />
-      {filled && <ResultBadge score={label} label={high_risk?"Neurologic intervention risk ~4%":medium_risk?"Brain injury risk elevated":"Low ciTBI risk"} color={color} sublabel="CATCH rule • Age 0–16 years" />}
-    </div>
-  );
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // CALCULATOR: BRONCHIOLITIS SEVERITY
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1631,8 +1850,10 @@ function NeonatalGlucoseCalc() {
   
   return (
     <div>
-      <NumberInput label="Blood Glucose" value={glucose} onChange={setGlucose} min={0} max={500} step={1} unit="mg/dL" />
-      <NumberInput label="Age" value={age_hrs} onChange={setAgeHrs} min={0} max={72} step={0.5} unit="hours of life" />
+      <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ flex: 1 }}><NumberInput label="Blood Glucose" value={glucose} onChange={setGlucose} min={0} max={500} step={1} unit="mg/dL" /></div>
+        <div style={{ flex: 1 }}><NumberInput label="Age" value={age_hrs} onChange={setAgeHrs} min={0} max={72} step={0.5} unit="hours of life" /></div>
+      </div>
       <ScoreRow label="Symptomatic?" value={symptoms} onChange={setSymptoms} options={[{value:0,label:"0 — Asymptomatic"},{value:1,label:"1 — Symptomatic (jittery/seizure/apnea)"}]} />
       <ResultBadge score={`${glucose} mg/dL`} label={label} color={color} sublabel={`AAP 2011 thresholds: 0–4h: <40, 4–24h: <45, >24h: <50 mg/dL`} />
     </div>
@@ -1643,14 +1864,17 @@ function NeonatalGlucoseCalc() {
 // CALCULATOR: PRETERM RISK (Gestational Age Context)
 // ═══════════════════════════════════════════════════════════════════════════════
 function PretermCalc() {
-  const [ga, setGa] = useState(32);
+  const [gaWeeks, setGaWeeks] = useState(32);
+  const [gaDays, setGaDays] = useState(0);
   const [birth_weight, setBirthWeight] = useState(1500);
-  
+
+  const ga = gaWeeks + (gaDays / 7);
+
   const iuga = birth_weight < (ga * 100 - 1600);
   const category = ga >= 37 ? "Term" : ga >= 34 ? "Late Preterm (34–36⁶)" : ga >= 32 ? "Moderate Preterm (32–33⁶)" : ga >= 28 ? "Very Preterm (28–31⁶)" : "Extremely Preterm (<28w)";
   const sga = birth_weight < (ga < 37 ? ga*100-1600 : 2500);
   const color = ga < 28 ? COLORS.danger : ga < 32 ? COLORS.orange : ga < 34 ? COLORS.warning : COLORS.success;
-  
+
   const concerns = [
     ga < 28 && "Extreme immaturity — surfactant, IVH, NEC, ROP risk",
     ga < 32 && "High RDS risk — surfactant, CPAP",
@@ -1660,12 +1884,15 @@ function PretermCalc() {
     birth_weight < 1000 && "ELBW — NICU-level care required",
     birth_weight < 1500 && "VLBW — parenteral nutrition likely",
   ].filter(Boolean);
-  
+
   return (
     <div>
-      <NumberInput label="Gestational Age at Birth" value={ga} onChange={setGa} min={22} max={42} step={0.1} unit="weeks" />
+      <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ flex: 2 }}><NumberInput label="Estimated Gestational Age" value={gaWeeks} onChange={v => setGaWeeks(Math.min(42, Math.max(22, Math.floor(v))))} min={22} max={42} step={1} unit="weeks" /></div>
+        <div style={{ flex: 1 }}><NumberInput label="EGA Days" value={gaDays} onChange={v => setGaDays(Math.min(6, Math.max(0, Math.floor(v))))} min={0} max={6} step={1} unit="days" /></div>
+      </div>
       <NumberInput label="Birth Weight" value={birth_weight} onChange={setBirthWeight} min={200} max={6000} step={10} unit="grams" />
-      <ResultBadge score={category} label={sga ? "SGA + Prematurity" : "AGA"} color={color} sublabel={`GA ${ga}w • BW ${birth_weight}g`} />
+      <ResultBadge score={category} label={sga ? "SGA + Prematurity" : "AGA"} color={color} sublabel={`EGA ${gaWeeks}w${gaDays > 0 ? `${gaDays}d` : ""} • BW ${birth_weight}g`} />
       {concerns.length > 0 && (
         <div style={{marginTop:14,padding:"14px 16px",borderRadius:12,background:COLORS.card,border:`1px solid ${COLORS.border}`}}>
           <div style={{color:COLORS.textMuted,fontSize:11,fontFamily:"'DM Mono',monospace",marginBottom:10}}>ANTICIPATED CONCERNS</div>
@@ -1814,7 +2041,6 @@ const CALCULATORS = [
   // Neurologic (expanded)
   { id:"pgcs",         category:"neurologic",  name:"Pediatric Glasgow Coma Scale", desc:"GCS adapted for infants and children",                    component: PGCSCalc },
   { id:"pecarn",       category:"neurologic",  name:"PECARN Head CT",               desc:"CT rule for pediatric head trauma",                       component: PECARNCalc },
-  { id:"catch",        category:"neurologic",  name:"CATCH Head CT Rule",           desc:"Canadian CT head injury rule for children",               component: CATCHCalc },
   { id:"cows",         category:"neurologic",  name:"COWS Score",                   desc:"Clinical Opiate Withdrawal Scale",                        component: COWSCalc },
   { id:"wat1",         category:"neurologic",  name:"WAT-1",                        desc:"Withdrawal Assessment Tool — iatrogenic opioid/benzo",    component: WATCalc },
   { id:"flacc",        category:"neurologic",  name:"FLACC Pain Scale",             desc:"Behavioral pain scale for non-verbal children",           component: FLACCCalc },
@@ -1882,7 +2108,7 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
           {activeCalc && (
             <button onClick={() => setActiveCalc(null)} style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 2, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: COLORS.navy, fontSize: 14, fontWeight: 600 }}>
-              ←
+              ⬅️
             </button>
           )}
           <div style={{ flex: 1 }}>
@@ -2118,7 +2344,7 @@ export default function App() {
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "8px 16px 20px", background: `linear-gradient(transparent, ${COLORS.bg} 40%)`, pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto", display: "flex", justifyContent: "center" }}>
           <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 2, padding: "5px 12px", fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, fontWeight: 500, textAlign: "center" }}>
-            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v4
+            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v5
           </div>
         </div>
       </div>

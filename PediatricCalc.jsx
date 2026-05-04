@@ -3094,7 +3094,7 @@ export default function App() {
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "8px 16px 20px", background: `linear-gradient(transparent, ${COLORS.bg} 40%)`, pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto", display: "flex", justifyContent: "center" }}>
           <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 2, padding: "5px 12px", fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, fontWeight: 500, textAlign: "center" }}>
-            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v6
+            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v7
           </div>
         </div>
       </div>

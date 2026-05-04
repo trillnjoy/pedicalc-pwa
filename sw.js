@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v6'; // v6 — Maintenance Fluids overhaul May 2026
+const CACHE_NAME = 'pedicalc-v7'; // v7 — Burns Lund-Browder image map, Fluids ordered rate
 const urlsToCache = [
   './',
   './index.html',

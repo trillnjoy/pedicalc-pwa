@@ -2251,7 +2251,7 @@ function BurnsCalc() {
     },
   };
 
-  const REPO = "https://raw.githubusercontent.com/trillnjoy/Claude_Artifacts/main/";
+  const REPO = "https://trillnjoy.github.io/pedicalc-pwa/";
 
   const [ageIdx, setAgeIdx] = useState(0);
   const [weight, setWeight] = useState(10);

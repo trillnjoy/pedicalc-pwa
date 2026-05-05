@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v7'; // v7 — Burns Lund-Browder image map, Fluids ordered rate
+const CACHE_NAME = 'pedicalc-v9'; // v8 — Burns Lund-Browder: validated adult front+back, child front+back SVG maps
 const urlsToCache = [
   './',
   './index.html',

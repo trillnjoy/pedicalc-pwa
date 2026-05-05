@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v9'; // v8 — Burns Lund-Browder: validated adult front+back, child front+back SVG maps
+const CACHE_NAME = 'pedicalc-v10'; // v10 — Burns baby front+back SVG maps validated and integrated
 const urlsToCache = [
   './',
   './index.html',

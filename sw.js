@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v10'; // v10 — Burns baby front+back SVG maps validated and integrated
+const CACHE_NAME = 'pedicalc-v11'; // v11 — U25 eGFR: CKiD 2012, Schwartz Eq1/Eq2 BUN toggle; burn zone clamp; dehydration/hyponatremia UX
 const urlsToCache = [
   './',
   './index.html',

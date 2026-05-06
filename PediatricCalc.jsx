@@ -1882,17 +1882,32 @@ function U25GFRCalc() {
   const [creatinine, setCreatinine] = useState(0.5);
   const [cystatin, setCystatin] = useState(0.9);
   const [age, setAge] = useState(10);
-  const [sex, setSex] = useState("male");
+  const [sex, setSex] = useState(null);
+  const [bun, setBun] = useState(15);
+  const [useBUN, setUseBUN] = useState(false);
   
-  // U25 Creatinine-based eGFR
-  const k = sex === "male" ? 41.3 : 39.1;
-  const egfr_scr = (k * height / creatinine).toFixed(1);
-  
-  // U25 Cystatin-C based eGFR  
+  const hM = height / 100; // height in metres
+  // Eq 1 — Bedside Schwartz 2009 (SCr only)
+  const egfr_scr_eq1 = (0.413 * height / creatinine).toFixed(1);
+  // Eq 2 — Modified Schwartz 2009 (SCr + BUN)
+  const egfr_scr_eq2 = (40.7 * Math.pow(hM / creatinine, 0.640) * Math.pow(30 / bun, 0.25)).toFixed(1);
+  const egfr_scr = useBUN ? egfr_scr_eq2 : egfr_scr_eq1;
+
+  // U25 Cystatin-C based eGFR (Filler & Lepage 2003)
   const egfr_cys = (70.69 * Math.pow(cystatin, -0.931)).toFixed(1);
-  
-  // Combined U25 equation (when both available)
-  const egfr_combined = (39.8 * Math.pow(height / creatinine, 0.456) * Math.pow(1.8 / cystatin, 0.418) * Math.pow(30 / 18.5, 0.127)).toFixed(1);
+
+  // Combined U25 (CKiD): arithmetic mean of active SCr and CysC equations
+  const egfr_combined = ((parseFloat(egfr_scr) + parseFloat(egfr_cys)) / 2).toFixed(1);
+
+  // CKiD 2012 full combined (Schwartz): SCr + CysC + BUN + height + sex
+  const sexFactor2012 = sex === "male" ? 1.076 : 1.0;
+  const egfr_ckid2012 = (39.8
+    * Math.pow(hM / creatinine, 0.456)
+    * Math.pow(1.8 / cystatin, 0.418)
+    * Math.pow(30 / bun, 0.079)
+    * Math.pow(hM / 1.4, 0.179)
+    * sexFactor2012
+  ).toFixed(1);
   
   const getStage = (gfr) => {
     const g = parseFloat(gfr);
@@ -1906,6 +1921,7 @@ function U25GFRCalc() {
   
   const displayGFR = method === "scr" ? egfr_scr : method === "cys" ? egfr_cys : egfr_combined;
   const { stage, color } = getStage(displayGFR);
+  const { stage: stage2012, color: color2012 } = getStage(egfr_ckid2012);
   
   return (
     <div>
@@ -1914,23 +1930,43 @@ function U25GFRCalc() {
         {value:"cys",label:"Cystatin-C only"},
         {value:"both",label:"Combined (both)"}
       ]} />
-      <NumberInput label="Age" value={age} onChange={setAge} min={0} max={25} step={0.5} unit="years (≤25)" />
-      <NumberInput label="Height" value={height} onChange={setHeight} min={30} max={200} unit="cm" />
-      <ScoreRow label="Sex" value={sex} onChange={setSex} options={[{value:"male",label:"Male"},{value:"female",label:"Female"}]} />
+      <div style={{display:"flex",gap:8,marginBottom:4,alignItems:"flex-end"}}>
+        <div style={{flex:3,minWidth:0}}><NumberInput label="Age" value={age} onChange={setAge} min={0} max={25} step={0.5} unit="years (≤25)" /></div>
+        <div style={{flex:3,minWidth:0}}><NumberInput label="Height" value={height} onChange={setHeight} min={30} max={200} unit="cm" /></div>
+        <div style={{flex:2,minWidth:0,marginBottom:10}}>
+          <div style={{color:COLORS.navy,fontSize:12,fontWeight:700,fontFamily:"'IBM Plex Sans',sans-serif",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:5}}>Sex</div>
+          <div style={{display:"flex",borderRadius:6,overflow:"hidden",border:`1.5px solid ${COLORS.border}`}}>
+            {[[null,"—"],["male","M"],["female","F"]].map(([val,lbl])=>(
+              <button key={String(val)} onClick={()=>setSex(val)}
+                style={{flex:1,padding:"8px 0",fontSize:13,fontWeight:700,fontFamily:"'IBM Plex Sans',sans-serif",border:"none",borderRight:val==="male"?`1px solid ${COLORS.border}`:"none",cursor:"pointer",
+                  background:sex===val?COLORS.navy:COLORS.bg,
+                  color:sex===val?"#fff":COLORS.textMuted,
+                  transition:"background 0.15s"}}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
       
-      {(method === "scr" || method === "both") && (
-        <NumberInput label="Serum Creatinine" value={creatinine} onChange={setCreatinine} min={0.1} max={15} step={0.01} unit="mg/dL" />
-      )}
-      
-      {(method === "cys" || method === "both") && (
-        <NumberInput label="Cystatin C" value={cystatin} onChange={setCystatin} min={0.1} max={8} step={0.01} unit="mg/L" />
-      )}
+      <div style={{display:"flex",gap:6,marginBottom:4,alignItems:"flex-end"}}>
+        <div style={{flex:1,minWidth:0}}><NumberInput label="BUN" value={bun} onChange={setBun} min={1} max={200} step={0.1} unit="mg/dL" /></div>
+        <div style={{flex:1,minWidth:0}}><NumberInput label="SCr" value={creatinine} onChange={setCreatinine} min={0.1} max={15} step={0.01} unit="mg/dL" /></div>
+        <div style={{flex:1,minWidth:0}}><NumberInput label="Cystatin C" value={cystatin} onChange={setCystatin} min={0.1} max={8} step={0.01} unit="mg/L" /></div>
+      </div>
+      <label style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,cursor:"pointer",userSelect:"none"}}>
+        <input type="checkbox" checked={useBUN} onChange={e=>setUseBUN(e.target.checked)}
+          style={{width:16,height:16,accentColor:COLORS.navy,cursor:"pointer"}} />
+        <span style={{fontSize:12,fontFamily:"'IBM Plex Sans',sans-serif",color:COLORS.navy,fontWeight:600}}>
+          Include BUN in SCr equation (Schwartz Eq 2)
+        </span>
+      </label>
       
       <div style={{marginTop:16,padding:"14px 16px",borderRadius:10,background:COLORS.card,border:`1px solid ${COLORS.border}`}}>
         <div style={{color:COLORS.textMuted,fontSize:11,fontFamily:"'DM Mono',monospace",marginBottom:10}}>CALCULATED eGFR VALUES</div>
         {(method === "scr" || method === "both") && (
           <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${COLORS.border}`}}>
-            <span style={{color:COLORS.textSub,fontSize:13,fontFamily:"'DM Mono',monospace"}}>SCr-based (U25)</span>
+            <span style={{color:COLORS.textSub,fontSize:13,fontFamily:"'DM Mono',monospace"}}>SCr {useBUN ? "+ BUN (Eq 2)" : "only (Eq 1)"}</span>
             <span style={{color:COLORS.accent,fontWeight:700,fontSize:14,fontFamily:"'Sora',sans-serif"}}>{egfr_scr} mL/min/1.73m²</span>
           </div>
         )}
@@ -1955,6 +1991,17 @@ function U25GFRCalc() {
         sublabel={`U25 equation (2021) • Age ≤25 years • KDIGO staging`} 
       />
       
+      <div style={{marginTop:12,padding:"14px 16px",borderRadius:10,background:COLORS.card,border:`1.5px solid ${COLORS.navy}`}}>
+        <div style={{color:COLORS.textMuted,fontSize:11,fontFamily:"'DM Mono',monospace",marginBottom:8}}>CKiD 2012 FULL COMBINED</div>
+        <div style={{fontSize:10,fontFamily:"'DM Mono',monospace",color:COLORS.textMuted,marginBottom:10,opacity:0.8}}>
+          39.8 × (ht/SCr)⁰·⁴⁵⁶ × (1.8/CysC)⁰·⁴¹⁸ × (30/BUN)⁰·⁰⁷⁹ × (ht/1.4)⁰·¹⁷⁹ {sex === "male" ? "× 1.076 (male)" : ""}
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+          <span style={{color:color2012,fontSize:28,fontWeight:700,fontFamily:"'Sora',sans-serif"}}>{egfr_ckid2012}</span>
+          <span style={{color:COLORS.textMuted,fontSize:11,fontFamily:"'DM Mono',monospace"}}>mL/min/1.73m²</span>
+        </div>
+        <div style={{color:color2012,fontSize:13,fontFamily:"'Sora',sans-serif",fontWeight:600,marginTop:2}}>{stage2012}</div>
+      </div>
       <div style={{marginTop:12,padding:"10px 14px",borderRadius:10,background:COLORS.card,border:`1px solid ${COLORS.border}`,color:COLORS.textMuted,fontSize:11,fontFamily:"'DM Mono',monospace"}}>
         ℹ U25 equations developed for children and young adults. Combined equation preferred when both biomarkers available.
       </div>
@@ -3121,7 +3168,7 @@ export default function App() {
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "8px 16px 20px", background: `linear-gradient(transparent, ${COLORS.bg} 40%)`, pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto", display: "flex", justifyContent: "center" }}>
           <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 2, padding: "5px 12px", fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, fontWeight: 500, textAlign: "center" }}>
-            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v9
+            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v11
           </div>
         </div>
       </div>

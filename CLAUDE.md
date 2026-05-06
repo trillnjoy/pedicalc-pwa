@@ -1,8 +1,34 @@
 # PediCalc PWA — CLAUDE.md
-## Current version: v9
+## Current version: v11
 **Deployed:** `trillnjoy.github.io/pedicalc-pwa/`
 **Working file:** `PediatricCalc.jsx` (single-file React, runtime Babel)
-**SW cache:** `pedicalc-v9`
+**SW cache:** `pedicalc-v11`
+
+---
+
+## SESSION START PROTOCOL — MANDATORY
+
+Before any patch, run this guard:
+
+```python
+import hashlib
+up  = hashlib.md5(open('/mnt/user-data/uploads/PediatricCalc.jsx','rb').read()).hexdigest()
+try:
+    out = hashlib.md5(open('/mnt/user-data/outputs/PediatricCalc.jsx','rb').read()).hexdigest()
+except FileNotFoundError:
+    out = None
+
+print(f"Upload: {up}")
+print(f"Output: {out or 'NOT PRESENT'}")
+print(f"Match:  {up == out}")
+```
+
+**Rules:**
+- If output is NOT PRESENT → copy upload to output first, then patch output only
+- If Match = True → patch either, but write to output
+- If Match = False → **always patch output, never open upload for writing**
+- After every patch, verify the previous session's key changes are still present in output
+- Never grep upload for line numbers then write to output — read and write the same file
 
 ---
 
@@ -12,12 +38,37 @@
 
 | Variant | Side  | vw    | vh    | Zones | Status |
 |---------|-------|-------|-------|-------|--------|
-| baby    | front | 100.0 | 167.4 | 16    | NOT validated — next session priority |
-| baby    | back  | 100.0 | 168.8 | 17    | NOT validated — next session priority |
+| baby    | front | 100.0 | 196.45 | 16   | Validated — component trace, dilate_px=3 |
+| baby    | back  | 100.0 | 203.88 | 17   | Validated — component trace, dilate_px=3 |
 | adult   | front | 100.0 | 194.0 | 16    | Validated + laterality confirmed correct |
 | adult   | back  | 100.0 | 183.6 | 17    | Validated + laterality confirmed correct |
 | child   | front | 100.0 | 218.2 | 16    | Validated + laterality confirmed correct |
 | child   | back  | 100.0 | 219.7 | 17    | Validated + laterality confirmed correct |
+
+### Baby SVG methodology (validated, do not alter)
+Direct connected-component extraction from line art at full resolution.
+- Black outline threshold: (0,0,0)–(80,80,80)
+- Background threshold: (235,235,235)–(255,255,255)
+- Interior = NOT(black) AND NOT(background)
+- connectedComponentsWithStats → component mask → dilate_px=3 (half stroke width ~6px) → approxPolyDP eps=0.6 → Laplacian smooth 1 pass
+- No parametric warping from adult or child — this has failed repeatedly
+
+### Front component map (BurnBabyF_1052.png, 535×1051)
+```
+head=2, neck=12, trunkAnt=14, genitalia=115
+upArmR=25, upArmL=26, forearmR=44, forearmL=46
+handR=88, handL=90
+thighR=96, thighL=97, legR=147, legL=148, footR=174, footL=175
+```
+
+### Back component map (BurnBabyB_1052.png, 516×1052)
+```
+head=2, neck=70, trunkPost=85
+upArmL=102, upArmR=107, forearmL=164, forearmR=165
+handL=288, handR=285
+buttockL=314, buttockR=312
+thighL=410, thighR=451, legL=550, legR=552, footL=624, footR=626
+```
 
 ### Laterality rules (CRITICAL — do not violate)
 **Front view** (patient facing viewer):
@@ -44,88 +95,13 @@ const ZONE_LABELS = {
 };
 ```
 
-### Laterality fix history (for context)
-- Adult front: all zones correct from source trace
-- Adult back: all zones correct from source trace
-- Child front: zones sourced from child_proof.html SVG[0]; key names renamed so
-  screen-left shapes carry R suffix (upArmR↔upArmL, forearmR↔forearmL, handR↔handL,
-  thighR↔thighL, legR↔legL, footR↔footL)
-- Child back: sourced from child_proof.html SVG[1]; buttockR↔buttockL and
-  thighR↔thighL key names renamed
-
----
-
-## Baby SVG — PENDING (next session #1 priority)
-
-### Source images
-- Front (JPEG, 535×1056): `/mnt/user-data/uploads/8A49B644-E1CA-4B6A-8638-DC98D4121940.jpeg`
-  Clean separated front figure with genitalia. Solid closed outlines. Pre-colored fills.
-- Back: right-half crop of `/mnt/user-data/uploads/8A49B644-E1CA-4B6A-8638-DC98D4121940.png`
-  Combined image (front left, back right). Buttock zones clearly labeled.
-
-### Agreed methodology
-Direct contour trace — NO parametric warping.
-Mid-stroke dilation: fill contour mask → dilate outward by dilate_px=5 → trace outer boundary.
-This produces shared-wall fills with no gaps.
-
-```python
-def make_path(c, w, h, vw, vh, dilate=5, eps=0.8, smooth=3):
-    mask = np.zeros((h,w), dtype=np.uint8)
-    cv2.drawContours(mask, [c], 0, 255, -1)
-    k = np.ones((dilate*2+1, dilate*2+1), np.uint8)
-    dilated = cv2.dilate(mask, k)
-    conts, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_TC89_KCOS)
-    best = max(conts, key=cv2.contourArea)
-    approx = cv2.approxPolyDP(best, eps, True).reshape(-1, 2)
-    pts = [(p[0]/w*vw, p[1]/h*vh) for p in approx]
-    # Laplacian smooth x smooth iters
-    return "M x,y L x,y ... Z"
+### BURN_ZONE_COLORS (in BurnsCalc component)
+```js
+const BURN_ZONE_COLORS = {
+  head:"#f5d485", thighR:"#a8c8e8", thighL:"#a8c8e8",
+  legR:"#a8d4a8", legL:"#a8d4a8", _default:"#e8eaed",
+};
 ```
-
-### Front contour map (535×1056 JPEG, verified):
-```
-[2]=head  [15]=neck  [1]=trunk  [16]=genitalia
-[7]=upArmL [8]=forearmL [13]=handL
-[9]=upArmR [10]=forearmR [14]=handR
-[3]=thighL [4]=thighR
-[5]=legL   [6]=legR
-[11]=footL [12]=footR
-```
-
-### Back contour map (right-half crop of PNG):
-Needs fresh audit at session start. Key zones: head, neck, trunk (clip y=26.5–53.5%),
-buttockR, buttockL (labeled in image), thighR, thighL, legR, legL, footR, footL,
-upArmR, upArmL, forearmR, forearmL, handR, handL.
-
-### Validation workflow
-1. Audit contours fresh
-2. Trace → render PNG → Claude Vision check
-3. Fix disconnects/gaps
-4. Render side-by-side proof HTML
-5. Human validation before embedding
-6. After approval: replace baby block in BURN_SVG, bump to v10
-
-### CRITICAL: key naming after embedding
-Apply same laterality rules as above.
-Run audit script before declaring done:
-- Front: R keys must have cx < 50, L keys must have cx > 50
-- Back: R keys must have cx > 50, L keys must have cx < 50
-
----
-
-## Adult SVG methodology (validated, do not alter)
-
-Adult front: direct trace from burn_adult_f_648.png
-  head=4, neck=15, trunkAnt=1, genitalia=16, thighR=3, thighL=2,
-  legR=5, legL=6, footR=11, footL=12,
-  upArmR=7, forearmR=8, handR=14, upArmL=10, forearmL=9, handL=13
-
-Adult back: direct trace from burn_adult_b_648.png
-  idx2 split at 55% for buttocks/thighs using quad_bezier_pts() U-fold
-  Plain to_path() for legs/feet
-
-Child: parametric warp from adult + key renaming for laterality
-  Source of truth: child_proof.html (uploaded to Claude artifacts this session)
 
 ---
 
@@ -146,11 +122,92 @@ Fixed zones: trunkAnt=13%, trunkPost=13%, genitalia=1%, each buttock=2.5%,
 Parkland: 4 × kg × TBSA% = 24h; 1st 8h = half; next 16h = half
 Galveston: 5000×m²_burned + 2000×m²_total (requires height)
 
+### setBurnSide — partial+full clamping
+```js
+const setBurnSide = (side, zone, depth, val) => {
+  const setter = side === "front" ? setBurnsFront : setBurnsBack;
+  const otherDepth = depth === "partial" ? "full" : "partial";
+  setter(b => {
+    const other = b[zone]?.[otherDepth] ?? 0;
+    const clamped = Math.min(100 - other, Math.max(0, val));
+    return { ...b, [zone]: { ...b[zone], [depth]: clamped } };
+  });
+};
+```
+
+### ZonePopover — draft input pattern (prevents focus ejection)
+Input holds local draft string while typing; commits to state on blur only.
+Fraction buttons clear draft and call setBurnSide directly.
+
+---
+
+## U25 eGFR — equations (v11)
+
+Height input is in cm; all equations require metres. Always use `hM = height / 100`.
+
+### Eq 1 — Bedside Schwartz 2009 (SCr only, no BUN)
+```js
+const egfr_scr_eq1 = (0.413 * height / creatinine).toFixed(1); // height in cm
+```
+
+### Eq 2 — Modified Schwartz 2009 (SCr + BUN)
+```js
+const egfr_scr_eq2 = (40.7 * Math.pow(hM / creatinine, 0.640) * Math.pow(30 / bun, 0.25)).toFixed(1);
+```
+Toggle via `useBUN` checkbox. Preferred by nephrology when BUN available.
+Active equation drives the SCr row and the Combined mean.
+
+### CysC — Filler & Lepage 2003
+```js
+const egfr_cys = (70.69 * Math.pow(cystatin, -0.931)).toFixed(1);
+```
+
+### Combined U25 (CKiD) — arithmetic mean of active SCr + CysC
+```js
+const egfr_combined = ((parseFloat(egfr_scr) + parseFloat(egfr_cys)) / 2).toFixed(1);
+```
+
+### CKiD 2012 Full Combined (Schwartz) — separate result card
+```js
+const sexFactor2012 = sex === "male" ? 1.076 : 1.0;
+const egfr_ckid2012 = (39.8
+  * Math.pow(hM / creatinine, 0.456)
+  * Math.pow(1.8 / cystatin, 0.418)
+  * Math.pow(30 / bun, 0.079)
+  * Math.pow(hM / 1.4, 0.179)
+  * sexFactor2012
+).toFixed(1);
+```
+Requires all four inputs: height, SCr, CysC, BUN. Shown in separate bordered card below main ResultBadge.
+`getStage` called after its definition — do not move above line ~1912.
+
+### Input layout
+- Row 1: Age (flex:3) | Height (flex:3) | Sex toggle —/M/F (flex:2), null default
+- Row 2: BUN | SCr | Cystatin C (equal flex:1 each)
+- Checkbox: "Include BUN in SCr equation (Schwartz Eq 2)"
+
+---
+
+## Hyponatremia Correction (SodiumCalc) — v11
+- Input row: Curr Na (flex:4) | Target Na (flex:4) | Pt Wt (flex:2) — inline inputs, not NumberInput
+- Formula shown: `Na deficit = 0.6 × weight(kg) × (Target Na − Current Na)`
+- ⚠️ on Max per 24hr result row; ⛔️ on 3% NaCl result row
+- ⚠ CPM warning + ⛔ 3% NaCl contraindication warning in results card
+
+## Dehydration Score — v11
+All 8 rows use shortened labels to fit 3 options on one row:
+- General Appearance: Normal | Irritable | Lethargic
+- Eyes: Normal | Sl Sunken | V Sunken
+- Skin Turgor: Normal | Diminished | Tenting
+- Respiration: Normal | Deep/Rapid | V Deep/Irreg
+- Pulse: Normal | Rapid | V Rapid/Weak
+
 ---
 
 ## Deployment
 Push to trillnjoy/pedicalc-pwa:
 1. PediatricCalc.jsx
-2. sw.js (cache: pedicalc-v9)
-3. index.html (unchanged)
-4. manifest.json, icons (unchanged)
+2. sw.js (cache: pedicalc-v11)
+3. CLAUDE.md
+4. index.html (unchanged)
+5. manifest.json, icons (unchanged)

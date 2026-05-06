@@ -1826,48 +1826,167 @@ function FluidCalc() {
 function DoseCalc() {
   const [weight, setWeight] = useState(20);
   const [drug, setDrug] = useState("acetaminophen");
+  const [fmtIdx, setFmtIdx] = useState(0);
   const DRUGS = {
-    acetaminophen: { name:"Acetaminophen", dose:[10,15], unit:"mg/kg", max:"1000 mg/dose", freq:"q4–6h", route:"PO/IV/PR" },
-    ibuprofen:     { name:"Ibuprofen", dose:[5,10], unit:"mg/kg", max:"400 mg/dose", freq:"q6–8h", route:"PO (≥6mo)" },
-    amoxicillin:   { name:"Amoxicillin (standard)", dose:[25,45], unit:"mg/kg/day ÷ 2", max:"500 mg BID", freq:"BID", route:"PO" },
-    azithromycin:  { name:"Azithromycin", dose:[10,10], unit:"mg/kg/day×1, then 5mg/kg", max:"500 mg", freq:"Daily ×5d", route:"PO/IV" },
-    ceftriaxone:   { name:"Ceftriaxone", dose:[50,100], unit:"mg/kg/day", max:"2 g", freq:"Daily", route:"IV/IM" },
-    morphine:      { name:"Morphine IV", dose:[0.05,0.1], unit:"mg/kg/dose", max:"4 mg", freq:"q3–4h PRN", route:"IV" },
-    ondansetron:   { name:"Ondansetron", dose:[0.15,0.15], unit:"mg/kg/dose", max:"4 mg/dose", freq:"q8h PRN", route:"PO/IV" },
-    dexamethasone: { name:"Dexamethasone (croup)", dose:[0.6,0.6], unit:"mg/kg×1", max:"10 mg", freq:"Single dose", route:"PO/IV/IM" },
-    epinephrine:   { name:"Epinephrine (cardiac arrest)", dose:[0.01,0.01], unit:"mg/kg (1:10,000)", max:"1 mg", freq:"q3–5 min", route:"IV/IO" },
-    atropine:      { name:"Atropine (bradycardia)", dose:[0.02,0.02], unit:"mg/kg", max:"1 mg", freq:"PRN q5min", route:"IV/IO" },
+    acetaminophen: { name:"acetaminophen (Tylenol)", indication:"Fever, pain", formulations:["32 mg/mL liq", "325 mg tab", "500 mg tab", "80 mg chew tab", "120 mg supp", "10 mg/mL IV"], dose:[10, 15], unit:"mg/kg/dose", max:"1000 mg/dose", maxMg:1000, freq:"q4-6h", route:"PO/IV/PR" },
+    adapalene: { name:"adapalene (Differin)", indication:"Acne vulgaris (teens)", formulations:["0.1% top gel 0.3% top gel 0.1% top"] },
+    albuterol: { name:"albuterol (ProAir, Ventolin)", indication:"Asthma, bronchospasm", formulations:["90 mcg/actuation MDI", "0.63 mg/mL neb liq", "1.25 mg/mL neb liq", "2.5 mg/mL neb liq", "0.4 mg/mL syrup"] },
+    amoxicillin: { name:"amoxicillin (Amoxil)", defaultFmt:2, indication:"AOM, pharyngitis, sinusitis, pneumonia", formulations:["25 mg/mL liq", "50 mg/mL liq", "80 mg/mL liq", "125 mg chew tab", "250 mg chew tab", "500 mg cap", "875 mg tab", "1000 mg tab"], dose:[12.5, 45], unit:"mg/kg/dose", max:"1000 mg/dose", maxMg:1000, freq:"BID", route:"PO" },
+    amoxicillin_clavulanate: { name:"amoxicillin-clavulanate (Augmentin)", defaultFmt:2, indication:"AOM, sinusitis, skin/bite infections", formulations:["40 mg/mL liq (amox component)", "80 mg/mL liq (amox component)", "120 mg/mL liq (amox component)", "500 mg tab", "875 mg tab"], dose:[12.5, 45], unit:"mg/kg/dose", max:"1000 mg/dose", maxMg:1000, freq:"BID", route:"PO" },
+    aripiprazole: { name:"ARIPiprazole (Abilify)", indication:"Autism-related irritability, bipolar disorder, schizophrenia", formulations:["1 mg/mL liq", "2 mg tab", "5 mg tab", "10 mg tab", "15 mg tab", "10 mg ODT"] },
+    atomoxetine: { name:"atomoxetine (Strattera)", indication:"ADHD (non-stimulant)", formulations:["10 mg cap", "18 mg cap", "25 mg cap", "40 mg cap", "60 mg cap", "80 mg cap", "100 mg cap"] },
+    atropine: { name:"atropine (AtroPen)", indication:"Bradycardia, organophosphate poisoning", formulations:["0.05 mg/mL IV", "0.1 mg/mL IV", "0.4 mg/mL IV", "1 mg/mL IV"], dose:[0.02, 0.02], unit:"mg/kg/dose", max:"1 mg/dose", maxMg:1, freq:"PRN q5min", route:"IV/IO" },
+    azathioprine: { name:"azathioprine (Imuran)", indication:"IBD, transplant immunosuppression", formulations:["50 mg tab", "5 mg/mL IV"] },
+    azithromycin: { name:"azithromycin (Zithromax)", indication:"AOM, pharyngitis, community-acquired pneumonia, pertussis", formulations:["20 mg/mL liq", "40 mg/mL liq", "250 mg tab", "500 mg tab 1% ophthalmic liq"], dose:[5, 10],  unit:"mg/kg/dose", max:"1000 mg/dose", maxMg:1000, freq:"Daily", route:"PO/IV" },
+    budesonide: { name:"budesonide (Pulmicort, Rhinocort)", indication:"Asthma (ICS controller), allergic rhinitis (nasal)", formulations:["0.125 mg/mL neb liq", "0.25 mg/mL neb liq", "0.5 mg/mL neb liq", "90 mcg/actuation inhaler", "180 mcg/actuation inhaler", "32 mcg/spray nasal spray"] },
+    cefazolin: { name:"ceFAZolin (Ancef)", indication:"Surgical prophylaxis, skin/soft tissue infections", formulations:["20 mg/mL IV", "500 mg IM/IV vial", "1 g IM/IV vial"] },
+    cefdinir: { name:"cefdinir (Omnicef)", indication:"AOM, sinusitis, pharyngitis, skin infections", formulations:["25 mg/mL liq", "50 mg/mL liq", "300 mg cap"] },
+    ceftriaxone: { name:"ceftriaxone (Rocephin)", indication:"Bacterial infections, sepsis, meningitis", formulations:["250 mg/mL IV/IM", "500 mg/mL IV/IM", "1 g/mL IV/IM", "2 g/mL IV/IM"], dose:[50, 100], unit:"mg/kg/dose", max:"2000 mg/dose", maxMg:2000, freq:"Daily-BID", route:"IV/IM" },
+    cefuroxime: { name:"cefuroxime (Ceftin)", indication:"AOM, sinusitis, Lyme disease, skin infections", formulations:["25 mg/mL liq", "250 mg tab", "500 mg tab"] },
+    cephalexin: { name:"cephalexin (Keflex)", indication:"Skin/soft tissue infections, UTI", formulations:["25 mg/mL liq", "50 mg/mL liq", "250 mg cap", "500 mg cap", "500 mg tab"] },
+    cetirizine: { name:"cetirizine (Zyrtec)", indication:"Allergic rhinitis, urticaria", formulations:["1 mg/mL liq", "5 mg chew tab", "10 mg tab"] },
+    ciprofloxacin_dexamethasone: { name:"ciprofloxacin-dexamethasone (otic) (Ciprodex)", indication:"Acute otitis externa, otitis media with tubes", formulations:["0.3%/0.1% otic liq"] },
+    clindamycin: { name:"clindamycin (Cleocin)", indication:"MRSA skin/soft tissue, dental infections, PCP prophylaxis", formulations:["15 mg/mL liq", "75 mg cap", "150 mg cap", "300 mg cap", "150 mg/mL IV 1% top liq/gel"] },
+    clonazepam: { name:"cloNAZepam (Klonopin)", indication:"Seizures, anxiety disorders", formulations:["0.5 mg tab", "1 mg tab", "2 mg tab", "0.125 mg ODT", "0.25 mg ODT"] },
+    clonidine: { name:"cloNIDine (Kapvay, Catapres)", indication:"ADHD (adjunct), hypertension, tic disorders, sleep", formulations:["0.1 mg tab", "0.2 mg tab", "0.1 mg/24 hr patch", "0.1 mg ER tab", "0.2 mg ER tab"] },
+    clotrimazole: { name:"clotrimazole (Lotrimin)", indication:"Tinea, candidiasis", formulations:["1% top liq 1% top", "10 mg lozenge"] },
+    combined_oral_contraceptives: { name:"combined oral contraceptives (Various)", indication:"Contraception, dysmenorrhea, acne, PCOS (teens)", formulations:["EE 20–35 mcg / progestin tab 21- or 28-day packs"] },
+    desmopressin: { name:"desmopressin (DDAVP)", indication:"Nocturnal enuresis, diabetes insipidus, von Willebrand disease", formulations:["100 mcg/mL nasal spray", "0.1 mg tab", "0.2 mg tab", "4 mcg/mL IV/SC"] },
+    dexamethasone: { name:"dexAMETHasone (Decadron)", indication:"Croup, asthma exacerbation, inflammatory/immune conditions", formulations:["0.1 mg/mL liq", "0.5 mg tab", "4 mg tab", "4 mg/mL IV/IM", "10 mg/mL IV/IM"], dose:[0.6, 0.6], unit:"mg/kg/dose", max:"10 mg/dose", maxMg:10, freq:"Once", route:"PO/IV/IM" },
+    dexmethylphenidate: { name:"dexmethylphenidate (Focalin)", indication:"ADHD", formulations:["2.5 mg tab", "5 mg tab", "10 mg tab", "5 mg ER cap", "10 mg ER cap", "20 mg ER cap"] },
+    diphenhydramine: { name:"diphenhydrAMINE (Benadryl)", indication:"Allergic reactions, urticaria, nausea, dystonia", formulations:["2.5 mg/mL liq", "25 mg tab", "50 mg tab", "50 mg/mL IV/IM"] },
+    doxycycline: { name:"doxycycline (Vibramycin, Doryx)", indication:"Community-acquired pneumonia, Lyme disease, acne (≥8 yrs)", formulations:["5 mg/mL liq", "50 mg tab", "100 mg tab", "50 mg cap", "100 mg cap", "100 mg IV"] },
+    epinephrine__racemic: { name:"EPINEPHrine, racemic (S2)", indication:"Croup (emergency)", formulations:["22.5 mg/mL neb liq (2.25%)"] },
+    epinephrine_cardiac: { name:"epinephrine - cardiac (Adrenalin)", indication:"Cardiac arrest, pulseless arrest", formulations:["0.1 mg/mL (1:10,000) IV", "1 mg/mL (1:1,000) IM"], dose:[0.01, 0.01], unit:"mg/kg/dose", max:"1 mg/dose", maxMg:1, freq:"q3-5 min", route:"IV/IO" },
+    ergocalciferol___cholecalciferol: { name:"ergocalciferol / cholecalciferol (Drisdol / various)", indication:"Vitamin D deficiency, rickets", formulations:["400 IU/mL oral drops 1,000 IU cap 50,000 IU cap (ergocalciferol Rx)"] },
+    erythromycin: { name:"erythromycin (ophthalmic) (Ilotycin)", indication:"Neonatal conjunctivitis prophylaxis", formulations:["5 mg/g ophthalmic top (0.5%)"] },
+    escitalopram: { name:"escitalopram (Lexapro)", indication:"Depression, anxiety disorders (teens)", formulations:["1 mg/mL liq", "5 mg tab", "10 mg tab", "20 mg tab"] },
+    famotidine: { name:"famotidine (Pepcid)", indication:"GERD, peptic ulcer disease", formulations:["8 mg/mL liq", "20 mg tab", "40 mg tab", "10 mg/mL IV"] },
+    ferrous_sulfate: { name:"ferrous sulfate (Fer-In-Sol)", indication:"Iron deficiency anemia", formulations:["15 mg/mL drops (elemental Fe)", "8.8 mg/mL liq (elemental Fe)", "325 mg tab (65 mg elemental Fe)"] },
+    fexofenadine: { name:"fexofenadine (Allegra)", indication:"Allergic rhinitis, urticaria", formulations:["6 mg/mL liq", "30 mg tab", "60 mg tab", "180 mg tab"] },
+    fluconazole: { name:"fluconazole (Diflucan)", indication:"Candidiasis (oral, esophageal, systemic), tinea", formulations:["10 mg/mL liq", "40 mg/mL liq", "50 mg tab", "100 mg tab", "150 mg tab", "2 mg/mL IV"] },
+    fludrocortisone: { name:"fludrocortisone (Florinef)", indication:"Congenital adrenal hyperplasia, adrenal insufficiency", formulations:["0.1 mg tab"] },
+    fluoxetine: { name:"fluoxetine (Prozac)", indication:"Depression, OCD, anxiety disorders", formulations:["4 mg/mL liq", "10 mg tab", "20 mg cap", "40 mg cap"] },
+    fluticasone: { name:"fluticasone (nasal) (Flonase)", indication:"Allergic rhinitis", formulations:["50 mcg/spray nasal spray"] },
+    fluticasone_propionate: { name:"fluticasone propionate (inhaled) (Flovent)", indication:"Asthma (ICS controller)", formulations:["44 mcg/actuation MDI", "110 mcg/actuation MDI", "220 mcg/actuation MDI", "50 mcg/actuation DPI", "100 mcg/actuation DPI", "250 mcg/actuation DPI"] },
+    fluticasone_salmeterol: { name:"fluticasone-salmeterol (Advair)", indication:"Asthma ≥4 yrs, persistent/moderate-severe", formulations:["100/50 mcg DPI 250/50 mcg DPI 45/21 mcg MDI 115/21 mcg MDI"] },
+    fluvoxamine: { name:"fluvoxamine (Luvox)", indication:"OCD, anxiety disorders", formulations:["25 mg tab", "50 mg tab", "100 mg tab", "100 mg ER cap", "150 mg ER cap"] },
+    folic_acid: { name:"folic acid (Various)", indication:"Folate deficiency, neural tube defect prevention (teens)", formulations:["1 mg tab", "5 mg tab", "5 mg/mL liq"] },
+    griseofulvin: { name:"griseofulvin (Grifulvin V)", indication:"Tinea capitis, tinea unguium", formulations:["25 mg/mL liq", "250 mg tab (microsize)", "500 mg tab (microsize)", "125 mg tab (ultramicrosize)", "250 mg tab (ultramicrosize)"] },
+    growth_hormone: { name:"growth hormone (somatropin) (Norditropin, Genotropin)", indication:"Growth hormone deficiency, Turner syndrome, SGA, Prader-Willi", formulations:["3.3 mg/mL SC pen", "6.7 mg/mL SC pen", "10 mg/mL SC pen", "5 mg SC cartridge", "12 mg SC cartridge"] },
+    guanfacine: { name:"guanFACINE (Intuniv, Tenex)", indication:"ADHD (adjunct/monotherapy), Tourette syndrome", formulations:["1 mg tab", "2 mg tab", "1 mg ER tab", "2 mg ER tab", "3 mg ER tab", "4 mg ER tab"] },
+    hydrocodone: { name:"hydrocodone (Vicodin, combo)", indication:"Moderate-severe pain (limited/declining pediatric use)", formulations:["5/325 mg tab (w/ APAP) 7.5/325 mg tab (w/ APAP)", "1 mg/mL liq (combo)"] },
+    hydrocortisone: { name:"hydrocortisone (topical) (Hytone, various)", indication:"Eczema, contact dermatitis, inflammatory dermatoses", formulations:["0.5% top 1% top 2.5% top"] },
+    hydroxyzine: { name:"hydrOXYzine (Vistaril, Atarax)", indication:"Anxiety, pruritus, procedural sedation", formulations:["2 mg/mL liq", "25 mg cap", "50 mg cap", "25 mg/mL IM", "50 mg/mL IM"] },
+    ibuprofen: { name:"ibuprofen (Motrin, Advil)", indication:"Fever, pain, inflammation, juvenile arthritis", formulations:["40 mg/mL infant drops", "20 mg/mL liq", "200 mg tab", "400 mg tab", "600 mg tab", "800 mg tab", "4 mg/mL IV"], dose:[5, 10],  unit:"mg/kg/dose", max:"800 mg/dose",  maxMg:800,  freq:"q6-8h", route:"PO (>=6mo)" },
+    insulin_aspart: { name:"insulin aspart (NovoLog)", indication:"Type 1 diabetes (rapid-acting)", formulations:["100 units/mL SC vial", "100 units/mL SC pen"] },
+    insulin_glargine: { name:"insulin glargine (Lantus, Basaglar)", indication:"Type 1 & 2 diabetes (basal)", formulations:["100 units/mL SC vial", "100 units/mL SC pen", "300 units/mL SC pen (Toujeo)"] },
+    insulin_lispro: { name:"insulin lispro (Humalog)", indication:"Type 1 diabetes (rapid-acting)", formulations:["100 units/mL SC vial", "100 units/mL SC pen", "200 units/mL SC pen"] },
+    ipratropium: { name:"ipratropium (Atrovent)", indication:"Asthma/bronchospasm exacerbations, allergic rhinitis", formulations:["0.2 mg/mL neb liq", "17 mcg/actuation MDI 0.03% nasal spray 0.06% nasal spray"] },
+    lamotrigine: { name:"lamotrigine (Lamictal)", indication:"Epilepsy, bipolar disorder", formulations:["25 mg tab", "100 mg tab", "150 mg tab", "200 mg tab", "2 mg chew tab", "5 mg chew tab", "25 mg ODT", "50 mg ER tab", "100 mg ER tab"] },
+    lansoprazole: { name:"lansoprazole (Prevacid)", indication:"GERD, peptic ulcer disease, H. pylori", formulations:["3 mg/mL liq (compounded)", "15 mg sprinkle cap", "30 mg cap", "15 mg ODT", "30 mg ODT", "30 mg IV"] },
+    levalbuterol: { name:"levalbuterol (Xopenex)", indication:"Asthma, bronchospasm", formulations:["0.1 mg/mL neb liq", "0.21 mg/mL neb liq", "0.42 mg/mL neb liq", "45 mcg/actuation MDI"] },
+    levetiracetam: { name:"levETIRAcetam (Keppra)", indication:"Focal & generalized epilepsy, status epilepticus", formulations:["100 mg/mL liq", "250 mg tab", "500 mg tab", "750 mg tab 1,000 mg tab", "500 mg ER tab", "100 mg/mL IV"] },
+    levonorgestrel: { name:"levonorgestrel (IUD/implant) (Mirena, Nexplanon)", indication:"Contraception (teens)", formulations:["52 mg IUD (~20 mcg/day release)", "68 mg subdermal implant"] },
+    levothyroxine: { name:"levothyroxine (Synthroid, Levoxyl)", indication:"Hypothyroidism (including congenital)", formulations:["25 mcg tab", "50 mcg tab", "75 mcg tab", "100 mcg tab", "125 mcg tab", "13 mcg/mL oral liq", "100 mcg/mL IV"] },
+    lisdexamfetamine: { name:"lisdexamfetamine (Vyvanse)", indication:"ADHD, binge eating disorder (teens)", formulations:["10 mg cap", "20 mg cap", "30 mg cap", "40 mg cap", "50 mg cap", "60 mg cap", "70 mg cap", "10 mg chew tab", "20 mg chew tab", "30 mg chew tab"] },
+    lorazepam: { name:"LORazepam (Ativan)", indication:"Seizures (acute/status), procedural anxiety", formulations:["2 mg/mL liq", "0.5 mg tab", "1 mg tab", "2 mg tab", "2 mg/mL IV/IM", "4 mg/mL IV/IM"] },
+    medroxyprogesterone: { name:"medroxyprogesterone (Depo-Provera)", indication:"Contraception (teens)", formulations:["150 mg/mL IM", "160 mg/mL SC"] },
+    metformin: { name:"metFORMIN (Glucophage)", indication:"Type 2 diabetes, PCOS (teens)", formulations:["100 mg/mL liq", "500 mg tab", "850 mg tab 1,000 mg tab", "500 mg ER tab", "750 mg ER tab"] },
+    methylphenidate: { name:"methylphenidate (Ritalin, Concerta)", indication:"ADHD", formulations:["1 mg/mL liq", "5 mg tab", "10 mg tab", "20 mg tab", "18 mg ER tab", "27 mg ER tab", "36 mg ER tab", "54 mg ER tab", "10 mg/9 hr patch"] },
+    methylprednisolone: { name:"methylPREDNISolone (Medrol, Solu-Medrol)", indication:"Asthma exacerbation, inflammatory/immune conditions", formulations:["2 mg tab", "4 mg tab (dose pack)", "8 mg tab", "16 mg tab", "40 mg/mL IV/IM", "62.5 mg/mL IV/IM"] },
+    metoclopramide: { name:"metoclopramide (Reglan)", indication:"GERD, gastroparesis, nausea/vomiting (used cautiously)", formulations:["1 mg/mL liq", "5 mg tab", "10 mg tab", "5 mg/mL IV/IM"] },
+    mometasone: { name:"mometasone (nasal) (Nasonex)", indication:"Allergic rhinitis, nasal polyps", formulations:["50 mcg/spray nasal spray"] },
+    montelukast: { name:"montelukast (Singulair)", indication:"Asthma (controller), allergic rhinitis", formulations:["4 mg granules (packet)", "4 mg chew tab", "5 mg chew tab", "10 mg tab"] },
+    morphine: { name:"morphine (various)", indication:"Moderate-severe pain", formulations:["2 mg/mL IV", "4 mg/mL IV", "10 mg/5 mL oral liq", "15 mg tab", "30 mg tab"], dose:[0.05, 0.1], unit:"mg/kg/dose", max:"4 mg/dose", maxMg:4, freq:"q3-4h PRN", route:"IV" },
+    mupirocin: { name:"mupirocin (Bactroban)", indication:"Impetigo, infected skin lesions, MRSA decolonization", formulations:["2% top 2% nasal top"] },
+    mycophenolate_mofetil: { name:"mycophenolate mofetil (CellCept)", indication:"Transplant immunosuppression, autoimmune nephritis", formulations:["200 mg/mL liq", "250 mg cap", "500 mg tab", "500 mg IV"] },
+    neomycin_polymyxin_hydrocortisone: { name:"neomycin-polymyxin-hydrocortisone (otic) (Cortisporin)", indication:"Otitis externa", formulations:["3.5 mg / 10,000 units /", "10 mg per mL otic liq"] },
+    norethindrone: { name:"norethindrone (Camila, Errin)", indication:"Contraception, abnormal uterine bleeding (teens)", formulations:["0.35 mg tab", "5 mg tab"] },
+    nystatin: { name:"nystatin (topical) (Mycostatin)", indication:"Cutaneous candidiasis, diaper dermatitis", formulations:["100,000 units/g top 100,000 units/g powder"] },
+    ofloxacin: { name:"ofloxacin (otic) (Floxin Otic)", indication:"Otitis externa, otitis media with perforation/tubes", formulations:["3 mg/mL otic liq (0.3%)"] },
+    omeprazole: { name:"omeprazole (Prilosec)", indication:"GERD, peptic ulcer disease (often off-label in infants)", formulations:["2 mg/mL liq (compounded)", "10 mg cap", "20 mg cap", "40 mg cap", "20 mg tab"] },
+    ondansetron: { name:"ondansetron (Zofran)", indication:"Nausea/vomiting (acute gastroenteritis, chemo, post-op)", formulations:["0.8 mg/mL liq", "4 mg tab", "8 mg tab", "4 mg ODT", "8 mg ODT", "2 mg/mL IV"], dose:[0.15, 0.15], unit:"mg/kg/dose", max:"4 mg/dose", maxMg:4, freq:"q8h PRN", route:"PO/IV" },
+    oxcarbazepine: { name:"OXcarbazepine (Trileptal)", indication:"Focal epilepsy, trigeminal neuralgia", formulations:["60 mg/mL liq", "150 mg tab", "300 mg tab", "600 mg tab", "150 mg ER tab", "300 mg ER tab", "600 mg ER tab"] },
+    penicillin_vk: { name:"penicillin VK (Pen-Vee K)", indication:"Streptococcal pharyngitis, dental infections, rheumatic fever prophylaxis", formulations:["25 mg/mL liq", "50 mg/mL liq", "250 mg tab", "500 mg tab"] },
+    permethrin: { name:"permethrin (Elimite, Nix)", indication:"Scabies (5%), head lice (1%)", formulations:["1% top liq (rinse) 5% top"] },
+    phenobarbital: { name:"phenobarbital (Luminal)", indication:"Neonatal seizures, epilepsy", formulations:["4 mg/mL liq", "15 mg tab", "30 mg tab", "60 mg tab", "100 mg tab", "65 mg/mL IV/IM", "130 mg/mL IV/IM"] },
+    polyethylene_glycol_3350: { name:"polyethylene glycol 3350 (MiraLax)", indication:"Constipation, fecal disimpaction", formulations:["17 g/dose powder for liq"] },
+    prednisolone: { name:"prednisoLONE (oral) (Prelone, Orapred)", indication:"Asthma exacerbation, croup, nephrotic syndrome, inflammatory conditions", formulations:["1 mg/mL liq", "3 mg/mL liq", "5 mg tab"] },
+    prednisolone_acetate: { name:"prednisolone acetate (ophthalmic) (Pred Forte)", indication:"Ocular inflammation, uveitis", formulations:["10 mg/mL ophthalmic liq (1%)"] },
+    prednisone: { name:"predniSONE (Deltasone)", indication:"Asthma, inflammatory/immune conditions, nephrotic syndrome", formulations:["1 mg/mL liq", "1 mg tab", "5 mg tab", "10 mg tab", "20 mg tab", "50 mg tab"] },
+    quetiapine: { name:"QUEtiapine (Seroquel)", indication:"Bipolar disorder, schizophrenia, insomnia (teens; off-label)", formulations:["25 mg tab", "50 mg tab", "100 mg tab", "200 mg tab", "300 mg tab", "50 mg ER tab", "150 mg ER tab", "200 mg ER tab", "300 mg ER tab"] },
+    risperidone: { name:"risperiDONE (Risperdal)", indication:"Autism-related irritability, schizophrenia, bipolar disorder", formulations:["1 mg/mL liq", "0.25 mg tab", "0.5 mg tab", "1 mg tab", "2 mg tab", "3 mg tab", "4 mg tab", "0.5 mg ODT", "1 mg ODT"] },
+    semaglutide: { name:"semaglutide (Wegovy)", indication:"Obesity (≥12 yrs)", formulations:["0.5 mg/mL SC pen", "1 mg/mL SC pen", "2 mg/mL SC pen", "2.27 mg/mL SC pen", "3.2 mg/mL SC pen"] },
+    sertraline: { name:"sertraline (Zoloft)", indication:"Depression, OCD, anxiety disorders, PTSD", formulations:["20 mg/mL liq", "25 mg tab", "50 mg tab", "100 mg tab"] },
+    tobramycin: { name:"tobramycin (ophthalmic) (Tobrex)", indication:"Bacterial conjunctivitis", formulations:["3 mg/mL ophthalmic liq (0.3%)", "3 mg/g ophthalmic top (0.3%)"] },
+    topiramate: { name:"topiramate (Topamax)", indication:"Epilepsy, migraine prophylaxis", formulations:["25 mg tab", "50 mg tab", "100 mg tab", "200 mg tab", "15 mg sprinkle cap", "25 mg sprinkle cap", "50 mg ER cap", "100 mg ER cap", "200 mg ER cap"] },
+    tramadol: { name:"tramadol (Ultram)", indication:"Moderate pain (declining use; contraindicated <12 yrs)", formulations:["50 mg tab", "100 mg ER tab", "200 mg ER tab"] },
+    tretinoin: { name:"tretinoin (Retin-A)", indication:"Acne vulgaris (teens)", formulations:["0.025% top 0.05% top 0.1% top 0.025% top gel 0.05% top gel"] },
+    triamcinolone: { name:"triamcinolone (topical) (Kenalog, Aristocort)", indication:"Eczema, inflammatory dermatoses, psoriasis", formulations:["0.025% top 0.1% top 0.5% top"] },
+    trimethoprim_sulfamethoxazole: { name:"trimethoprim-sulfamethoxazole (Bactrim, Septra)", indication:"UTI, MRSA skin infections, PCP prophylaxis, sinusitis", formulations:["8/40 mg/mL liq (TMP/SMX) 80/400 mg tab (SS) 160/800 mg tab (DS)", "16 mg/mL IV (TMP component)"] },
+    valproic_acid___divalproex: { name:"valPROic acid / divalproex (Depakote, Depakene)", indication:"Epilepsy, bipolar disorder, migraine prophylaxis", formulations:["50 mg/mL liq", "125 mg sprinkle cap", "250 mg cap", "125 mg ER tab", "250 mg ER tab", "500 mg ER tab", "100 mg/mL IV"] },
+    zolpidem: { name:"zolpidem (Ambien)", indication:"Insomnia (adolescents; off-label)", formulations:["5 mg tab", "10 mg tab", "6.25 mg ER tab", "12.5 mg ER tab"] },
+    zonisamide: { name:"zonisamide (Zonegran)", indication:"Focal & generalized epilepsy", formulations:["25 mg cap", "50 mg cap", "100 mg cap"] },
   };
-  const d = DRUGS[drug];
-  // Calculate doses and strip trailing zeros after decimal point
-  const low = (weight * d.dose[0]).toFixed(1).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
-  const high = (weight * d.dose[1]).toFixed(1).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+  const d = DRUGS[drug] || DRUGS.acetaminophen;
+  const fmts = d.formulations || [];
+  const handleDrugChange = (key) => { setDrug(key); setFmtIdx(DRUGS[key]?.defaultFmt ?? 0); };
+  const selStyle = {width:"100%",padding:"10px 14px",borderRadius:10,border:`1.5px solid ${COLORS.border}`,background:COLORS.bg,color:COLORS.text,fontSize:14,fontFamily:"'DM Mono',monospace",outline:"none"};
+  const lblStyle = {color:COLORS.navy,fontSize:12,fontWeight:700,fontFamily:"'IBM Plex Sans',sans-serif",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:5};
+  const hasDose = !!d.dose;
+  const calcLow  = hasDose ? Math.min(weight * d.dose[0], d.maxMg ?? Infinity) : null;
+  const calcHigh = hasDose ? Math.min(weight * d.dose[1], d.maxMg ?? Infinity) : null;
+  const fmt = (n) => n.toFixed(2).replace(/\.?0+$/,"") + " mg";
+  const low  = hasDose ? fmt(calcLow)  : "—";
+  const high = hasDose ? fmt(calcHigh) : "—";
   return (
     <div>
-      <NumberInput label="Weight" value={weight} onChange={setWeight} min={0.5} max={100} step={0.5} unit="kg" />
+      <div style={{display:"flex",gap:8,marginBottom:4,alignItems:"flex-end"}}>
+        <div style={{flex:2,minWidth:0,marginBottom:10}}>
+          <div style={lblStyle}>Weight <span style={{color:"#b8860b"}}>(kg)</span></div>
+          <input type="number" inputMode="decimal" value={weight} min={0.5} max={100} step={0.5}
+            onChange={e=>setWeight(parseFloat(e.target.value)||0)}
+            style={{width:"100%",padding:"8px 10px",borderRadius:6,border:`1.5px solid ${COLORS.border}`,background:COLORS.bg,color:COLORS.navy,fontSize:15,fontFamily:"'IBM Plex Mono',monospace",fontWeight:600,outline:"none",boxSizing:"border-box"}} />
+        </div>
+        <div style={{flex:5,minWidth:0,marginBottom:10}}>
+          <div style={lblStyle}>Drug</div>
+          <select value={drug} onChange={e=>handleDrugChange(e.target.value)} style={selStyle}>
+            {Object.entries(DRUGS).map(([k,v])=><option key={k} value={k}>{v.name}</option>)}
+          </select>
+        </div>
+      </div>
       <div style={{marginBottom:14}}>
-        <div style={{color:COLORS.textSub,fontSize:12,marginBottom:8,fontFamily:"'DM Mono',monospace",textTransform:"uppercase",letterSpacing:"0.08em"}}>Drug</div>
-        <select value={drug} onChange={e=>setDrug(e.target.value)} style={{width:"100%",padding:"10px 14px",borderRadius:10,border:`1.5px solid ${COLORS.border}`,background:COLORS.bg,color:COLORS.text,fontSize:14,fontFamily:"'DM Mono',monospace",outline:"none"}}>
-          {Object.entries(DRUGS).map(([k,v])=><option key={k} value={k}>{v.name}</option>)}
+        <div style={lblStyle}>Formulation</div>
+        <select value={fmtIdx} onChange={e=>setFmtIdx(Number(e.target.value))} style={selStyle}>
+          {fmts.map((f,i)=><option key={i} value={i}>{f}</option>)}
         </select>
       </div>
-      <div style={{marginTop:20,padding:"20px",borderRadius:14,background:COLORS.card,border:`1.5px solid ${COLORS.border}`}}>
-        <div style={{color:COLORS.textMuted,fontSize:11,fontFamily:"'DM Mono',monospace",marginBottom:12}}>{d.name.toUpperCase()}</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          {[
-            {label:"Low Dose",value:`${low} mg`},
-            {label:"High Dose",value:`${high} mg`},
-            {label:"Max Dose",value:d.max},
-            {label:"Frequency",value:d.freq},
-            {label:"Route",value:d.route},
-            {label:"Per kg",value:`${d.dose[0]}–${d.dose[1]} ${d.unit}`}
-          ].map(item=>(
-            <div key={item.label} style={{padding:"10px 12px",borderRadius:8,background:COLORS.bg,border:`1px solid ${COLORS.border}`}}>
-              <div style={{color:COLORS.textMuted,fontSize:10,fontFamily:"'DM Mono',monospace",textTransform:"uppercase"}}>{item.label}</div>
-              <div style={{color:COLORS.accent,fontSize:15,fontWeight:700,fontFamily:"'Sora',sans-serif",marginTop:3}}>{item.value}</div>
-            </div>
-          ))}
+      <div style={{padding:"16px",borderRadius:14,background:COLORS.card,border:`1.5px solid ${COLORS.border}`}}>
+        <div style={{color:COLORS.navy,fontSize:13,fontWeight:700,fontFamily:"'IBM Plex Sans',sans-serif",marginBottom:12}}>
+          {d.indication || "—"}
         </div>
+        {hasDose ? (
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            {[
+              {label:"Dose Per kg", value:d.dose ? `${d.dose[0]}-${d.dose[1]} ${d.unit.replace("/dose","")}` : "—"},
+              {label:"Max Single Dose", value:d.max ? d.max.replace("/dose","") : "—"},
+              {label:"Low Dose",  value:low},
+              {label:"High Dose", value:high},
+              {label:"Route",     value:d.route||"—"},
+              {label:"Frequency", value:d.freq||"—"},
+            ].map(item=>(
+              <div key={item.label} style={{padding:"10px 12px",borderRadius:8,background:COLORS.bg,border:`1px solid ${COLORS.border}`}}>
+                <div style={{color:COLORS.textMuted,fontSize:10,fontFamily:"'DM Mono',monospace",textTransform:"uppercase"}}>{item.label}</div>
+                <div style={{color:COLORS.accent,fontSize:15,fontWeight:700,fontFamily:"'Sora',sans-serif",marginTop:3}}>{item.value}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{color:COLORS.textMuted,fontSize:12,fontFamily:"'DM Mono',monospace",fontStyle:"italic"}}>
+            Pedi-Calc does not currently contain dosing recommendations for this drug.
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3168,7 +3287,7 @@ export default function App() {
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "8px 16px 20px", background: `linear-gradient(transparent, ${COLORS.bg} 40%)`, pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto", display: "flex", justifyContent: "center" }}>
           <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 2, padding: "5px 12px", fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, fontWeight: 500, textAlign: "center" }}>
-            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v11
+            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v12
           </div>
         </div>
       </div>

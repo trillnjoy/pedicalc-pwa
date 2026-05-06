@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v11'; // v11 — U25 eGFR: CKiD 2012, Schwartz Eq1/Eq2 BUN toggle; burn zone clamp; dehydration/hyponatremia UX
+const CACHE_NAME = 'pedicalc-v12'; // v12 — Common Drug Doses: 100-drug import, per-dose model, formulation dropdown, indication header, max capping
 const urlsToCache = [
   './',
   './index.html',

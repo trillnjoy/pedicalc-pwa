@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v12'; // v12 — Common Drug Doses: 100-drug import, per-dose model, formulation dropdown, indication header, max capping
+const CACHE_NAME = 'pedicalc-v13'; // v13 — Hyperbilirubinemia: full AAP 2022 rewrite, exact Supp Tables 1-4, escalation zone, effectiveRisk, graph+interp merged; calculator list reordered
 const urlsToCache = [
   './',
   './index.html',

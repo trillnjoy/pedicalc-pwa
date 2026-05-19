@@ -3105,7 +3105,8 @@ function BurnsCalc() {
     s.id = 'burn-slider-css';
     s.textContent = `
       .burn-range { -webkit-appearance:none; appearance:none; width:100%; height:34px;
-        background:transparent; outline:none; cursor:pointer; display:block; }
+        background:transparent; outline:none; cursor:pointer; display:block;
+        touch-action:none; }
       .burn-range::-webkit-slider-thumb {
         -webkit-appearance:none; appearance:none;
         width:28px; height:28px; border-radius:50%; margin-top:-11px;
@@ -3127,45 +3128,67 @@ function BurnsCalc() {
   }
 
   // Single slider row for one burn depth
+  // BurnSlider: zero React renders during drag gesture.
+  // During drag: direct DOM mutation via ref (no setState = no re-render = smooth on iOS).
+  // On pointerUp: single setState commit, optional detente snap.
+  // touch-action:none on .burn-range prevents Safari scroll gesture hijacking.
   const BurnSlider = ({ side, zone, depth, color }) => {
     const sideburns = getBurns(side);
-    const val = sideburns[zone]?.[depth] ?? 0;
+    const committed = sideburns[zone]?.[depth] ?? 0;
     const label = depth === "partial" ? "PT" : "FT";
 
-    const handleChange = (raw) => setDepthCoupled(side, zone, depth, parseInt(raw) || 0);
-    const handleCommit = (raw) => setDepthCoupled(side, zone, depth, snapDetente(parseInt(raw) || 0));
+    const inputRef = useRef(null);
+    const numRef   = useRef(null);
+    // dragVal tracks the live value during the gesture — more reliable than
+    // reading e.target.value in onPointerUp, which can lag on iOS
+    const dragVal  = useRef(committed);
+
+    // Direct DOM update during drag — bypasses React render cycle entirely
+    const onDragMove = (raw) => {
+      const v = Math.min(100, Math.max(0, parseInt(raw) || 0));
+      dragVal.current = v; // keep ref current so onDragEnd snaps correctly
+      if (inputRef.current) inputRef.current.style.setProperty('--burn-val', `${v}%`);
+      if (numRef.current)   numRef.current.value = v;
+    };
+
+    // Single React state commit on pointer release — reads dragVal, not e.target.value
+    const onDragEnd = () => {
+      setDepthCoupled(side, zone, depth, snapDetente(dragVal.current));
+    };
 
     return (
       <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-        {/* PT / FT label */}
         <div style={{ width:18, fontSize:10, fontWeight:700,
           fontFamily:"'IBM Plex Sans',sans-serif", color, flexShrink:0 }}>{label}</div>
 
-        {/* Slider + detente ticks */}
         <div style={{ flex:1, position:"relative" }}>
-          {/* Small tick marks below track at detente positions */}
+          {/* Detente tick marks */}
           <div style={{ position:"absolute", bottom:0, left:0, right:0,
             display:"flex", justifyContent:"space-between", pointerEvents:"none" }}>
             {DETENTES.map(d => (
               <div key={d} style={{ width:1, height:5, background:"#c0c4c9" }} />
             ))}
           </div>
-          <input type="range" min={0} max={100} step={1} value={val}
+          <input
+            ref={inputRef}
+            type="range" min={0} max={100} step={1}
+            defaultValue={committed}
             className="burn-range"
-            style={{ '--burn-color': color, '--burn-val': `${val}%` }}
-            onChange={e => handleChange(e.target.value)}
-            onMouseUp={e => handleCommit(e.target.value)}
-            onTouchEnd={e => handleCommit(e.target.value)}
+            style={{ '--burn-color': color, '--burn-val': `${committed}%` }}
+            onInput={e     => onDragMove(e.target.value)}
+            onPointerUp={() => onDragEnd()}
           />
         </div>
 
-        {/* Editable numeric field with % unit indicator */}
         <div style={{ width:62, flexShrink:0, display:"flex", alignItems:"center",
           border:`1.5px solid ${COLORS.border}`, borderRadius:6, background:COLORS.bg,
           overflow:"hidden" }}>
-          <input type="number" inputMode="numeric" min={0} max={100} value={val}
-            onChange={e => handleChange(e.target.value)}
-            onBlur={e   => handleCommit(e.target.value)}
+          <input
+            ref={numRef}
+            type="number" inputMode="numeric" min={0} max={100}
+            defaultValue={committed}
+            onInput={e  => onDragMove(e.target.value)}
+            onBlur={() => onDragEnd()}
             style={{ flex:1, border:"none", outline:"none", background:"transparent",
               fontSize:15, fontWeight:700, fontFamily:"'IBM Plex Mono',monospace",
               color:COLORS.navy, textAlign:"right", padding:"4px 2px 4px 4px",
@@ -3943,7 +3966,7 @@ export default function App() {
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "8px 16px 20px", background: `linear-gradient(transparent, ${COLORS.bg} 40%)`, pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto", display: "flex", justifyContent: "center" }}>
           <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 2, padding: "5px 12px", fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, fontWeight: 500, textAlign: "center" }}>
-            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v16
+            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v18
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v15'; // Bumped v14 → v15: burn calculator LB data correction and summation fix
+const CACHE_NAME = 'pedicalc-v18'; // v17 → v18: dragVal ref fix for detente snap on iOS
 const urlsToCache = [
   './',
   './index.html',

@@ -3078,41 +3078,136 @@ function BurnsCalc() {
     );
   };
 
-  const btnBase = { flex:1, padding:"7px 4px", borderRadius:3, border:"1px solid #d0d4d9", background:COLORS.bg, color:COLORS.navy, fontSize:12, cursor:"pointer", fontFamily:"-apple-system,sans-serif", fontWeight:500, textAlign:"center" };
-  const btnSel  = { ...btnBase, background:"#e8eaed", fontWeight:700 };
+  // Upper body zones trigger drawer from top; lower body from bottom
+  const UPPER_ZONES = new Set(["head","neck","trunkAnt","trunkPost","upArmL","upArmR","forearmL","forearmR","handL","handR"]);
 
-  const ZonePopover = ({ zone, side }) => {
+  // Snap to nearest detente (0,25,50,75,100) if within ±2 integers
+  const DETENTES = [0, 25, 50, 75, 100];
+  const snapDetente = (val) => {
+    const nearest = DETENTES.reduce((a,b) => Math.abs(b-val) < Math.abs(a-val) ? b : a);
+    return Math.abs(nearest - val) <= 2 ? nearest : val;
+  };
+
+  // Coupled setter: adjusting one depth auto-clamps the other so PT+FT ≤ 100
+  const setDepthCoupled = (side, zone, depth, rawVal) => {
+    const val = Math.min(100, Math.max(0, Math.round(rawVal)));
+    const other = depth === "partial" ? "full" : "partial";
+    const setter = side === "front" ? setBurnsFront : setBurnsBack;
+    setter(b => {
+      const otherClamped = Math.min(b[zone]?.[other] ?? 0, 100 - val);
+      return { ...b, [zone]: { partial: depth==="partial" ? val : otherClamped, full: depth==="full" ? val : otherClamped } };
+    });
+  };
+
+  // Inject slider CSS once so native range input is fully styled on iOS/Safari
+  if (typeof document !== 'undefined' && !document.getElementById('burn-slider-css')) {
+    const s = document.createElement('style');
+    s.id = 'burn-slider-css';
+    s.textContent = `
+      .burn-range { -webkit-appearance:none; appearance:none; width:100%; height:34px;
+        background:transparent; outline:none; cursor:pointer; display:block; }
+      .burn-range::-webkit-slider-thumb {
+        -webkit-appearance:none; appearance:none;
+        width:28px; height:28px; border-radius:50%; margin-top:-11px;
+        background:white; border:2.5px solid var(--burn-color);
+        box-shadow:0 1px 6px rgba(0,0,0,0.30); }
+      .burn-range::-webkit-slider-runnable-track {
+        height:6px; border-radius:3px;
+        background:linear-gradient(to right,
+          var(--burn-color) 0%, var(--burn-color) var(--burn-val),
+          #d0d4d9 var(--burn-val), #d0d4d9 100%); }
+      .burn-range::-moz-range-thumb {
+        width:28px; height:28px; border-radius:50%;
+        background:white; border:2.5px solid var(--burn-color);
+        box-shadow:0 1px 6px rgba(0,0,0,0.30); }
+      .burn-range::-moz-range-track { height:6px; border-radius:3px; background:#d0d4d9; }
+      .burn-range::-moz-range-progress { height:6px; border-radius:3px; background:var(--burn-color); }
+    `;
+    document.head.appendChild(s);
+  }
+
+  // Single slider row for one burn depth
+  const BurnSlider = ({ side, zone, depth, color }) => {
     const sideburns = getBurns(side);
-    const pct = zonePct(zone);
+    const val = sideburns[zone]?.[depth] ?? 0;
+    const label = depth === "partial" ? "PT" : "FT";
+
+    const handleChange = (raw) => setDepthCoupled(side, zone, depth, parseInt(raw) || 0);
+    const handleCommit = (raw) => setDepthCoupled(side, zone, depth, snapDetente(parseInt(raw) || 0));
+
     return (
-      <div style={{ marginTop:8, padding:"12px 14px", borderRadius:3, background:COLORS.surface, border:`1px solid ${COLORS.navy}` }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10 }}>
-          <div style={{ color:COLORS.navy, fontSize:13, fontFamily:"'IBM Plex Sans',sans-serif", fontWeight:700 }}>{ZONE_LABELS[zone]} <span style={{color:COLORS.textMuted,fontSize:10,fontWeight:400}}>({side})</span></div>
-          <div style={{ color:COLORS.textMuted, fontSize:10, fontFamily:"'IBM Plex Mono',monospace" }}>{pct}% BSA</div>
-        </div>
-        {[["partial","Partial Thickness",COLORS.warning],["full","Full Thickness",COLORS.danger]].map(([depth,dlabel,dcolor]) => (
-          <div key={depth} style={{ marginBottom:10 }}>
-            <div style={{ color:dcolor, fontSize:10, fontFamily:"'IBM Plex Sans',sans-serif", fontWeight:700, textTransform:"uppercase", marginBottom:4 }}>{dlabel}</div>
-            <div style={{ display:"flex", gap:3, marginBottom:5 }}>
-              <button style={sideburns[zone]?.[depth]===0?btnSel:btnBase} onClick={()=>setBurnSide(side,zone,depth,0)}>0</button>
-              {FRACS.map(fr=>(
-                <button key={fr.val} style={sideburns[zone]?.[depth]===fr.val?btnSel:btnBase} onClick={()=>setBurnSide(side,zone,depth,fr.val)}>{fr.label}</button>
-              ))}
-            </div>
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <input type="number" inputMode="decimal" min={0} max={100} value={sideburns[zone]?.[depth] ?? 0}
-                onChange={e=>setBurnSide(side,zone,depth,parseFloat(e.target.value)||0)}
-                style={{ width:60, padding:"6px 8px", borderRadius:3, border:"1px solid #d0d4d9", background:COLORS.bg, color:COLORS.navy, fontSize:14, fontFamily:"'IBM Plex Mono',monospace", fontWeight:600, outline:"none" }} />
-              <span style={{ fontSize:10, color:COLORS.textMuted, fontFamily:"'IBM Plex Mono',monospace" }}>
-                % → {((sideburns[zone]?.[depth]??0)/100*pct).toFixed(2)}% TBSA
-              </span>
-            </div>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+        {/* PT / FT label */}
+        <div style={{ width:18, fontSize:10, fontWeight:700,
+          fontFamily:"'IBM Plex Sans',sans-serif", color, flexShrink:0 }}>{label}</div>
+
+        {/* Slider + detente ticks */}
+        <div style={{ flex:1, position:"relative" }}>
+          {/* Small tick marks below track at detente positions */}
+          <div style={{ position:"absolute", bottom:0, left:0, right:0,
+            display:"flex", justifyContent:"space-between", pointerEvents:"none" }}>
+            {DETENTES.map(d => (
+              <div key={d} style={{ width:1, height:5, background:"#c0c4c9" }} />
+            ))}
           </div>
-        ))}
-        <button onClick={()=>setActiveZone(null)}
-          style={{ width:"100%", padding:"7px", borderRadius:3, border:`1px solid ${COLORS.border}`, background:COLORS.bg, color:COLORS.textMuted, fontSize:12, cursor:"pointer", fontFamily:"-apple-system,sans-serif" }}>
-          Done ✓
-        </button>
+          <input type="range" min={0} max={100} step={1} value={val}
+            className="burn-range"
+            style={{ '--burn-color': color, '--burn-val': `${val}%` }}
+            onChange={e => handleChange(e.target.value)}
+            onMouseUp={e => handleCommit(e.target.value)}
+            onTouchEnd={e => handleCommit(e.target.value)}
+          />
+        </div>
+
+        {/* Editable numeric field with % unit indicator */}
+        <div style={{ width:62, flexShrink:0, display:"flex", alignItems:"center",
+          border:`1.5px solid ${COLORS.border}`, borderRadius:6, background:COLORS.bg,
+          overflow:"hidden" }}>
+          <input type="number" inputMode="numeric" min={0} max={100} value={val}
+            onChange={e => handleChange(e.target.value)}
+            onBlur={e   => handleCommit(e.target.value)}
+            style={{ flex:1, border:"none", outline:"none", background:"transparent",
+              fontSize:15, fontWeight:700, fontFamily:"'IBM Plex Mono',monospace",
+              color:COLORS.navy, textAlign:"right", padding:"4px 2px 4px 4px",
+              minWidth:0 }} />
+          <span style={{ fontSize:11, color:COLORS.textMuted, paddingRight:5,
+            fontFamily:"'IBM Plex Sans',sans-serif", userSelect:"none" }}>%</span>
+        </div>
+      </div>
+    );
+  };
+
+
+  // Overlay drawer — absolute within the homunculus container
+  const ZoneDrawer = ({ zone, side }) => {
+    const pct = zonePct(zone);
+    const isUpper = UPPER_ZONES.has(zone);
+    // Upper body zones: drawer slides up from bottom (keeps head/trunk visible above)
+    // Lower body zones: drawer slides down from top (keeps legs/feet visible below)
+    const fromBottom = isUpper;
+    return (
+      <div style={{
+        position:"absolute", left:0, right:0,
+        top: fromBottom ? undefined : 0,
+        bottom: fromBottom ? 0 : undefined,
+        zIndex:10,
+        background:"rgba(255,255,255,0.97)",
+        borderRadius: fromBottom ? "12px 12px 4px 4px" : "4px 4px 12px 12px",
+        border:`1.5px solid ${COLORS.border}`,
+        padding:"10px 12px 8px",
+        boxShadow:"0 4px 24px rgba(0,0,0,0.13)",
+      }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10 }}>
+          <div style={{ fontSize:13, fontWeight:700, fontFamily:"'IBM Plex Sans',sans-serif", color:COLORS.navy }}>
+            {ZONE_LABELS[zone]}
+            <span style={{ fontSize:10, fontWeight:400, color:COLORS.textMuted, marginLeft:5 }}>({side})</span>
+          </div>
+          <div style={{ fontSize:10, fontFamily:"'IBM Plex Sans',sans-serif", color:COLORS.textMuted, textAlign:"right", lineHeight:1.3 }}>
+            At this age<br/><strong style={{color:COLORS.navy}}>{pct}%</strong> of total BSA
+          </div>
+        </div>
+        <BurnSlider side={side} zone={zone} depth="partial" color="rgba(221,107,32,0.85)" />
+        <BurnSlider side={side} zone={zone} depth="full"    color="rgba(229,62,62,0.85)"  />
       </div>
     );
   };
@@ -3132,9 +3227,21 @@ function BurnsCalc() {
         </div>
       </div>
 
-      <div style={{ display:"flex", gap:6, marginBottom:4 }}>
-        <BodySVG side="front" />
-        <BodySVG side="back" />
+      {/* Homunculus pair with dim overlay and zone drawer inside relative container */}
+      <div style={{ position:"relative", marginBottom:4 }}>
+        <div style={{ display:"flex", gap:6 }}>
+          <BodySVG side="front" />
+          <BodySVG side="back" />
+        </div>
+        {/* Dim veil — keeps both figures visible but receded during zone editing */}
+        {activeZone && (
+          <div style={{
+            position:"absolute", inset:0, background:"rgba(255,255,255,0.40)",
+            pointerEvents:"none", borderRadius:4,
+          }} />
+        )}
+        {/* Zone drawer slides in from top (upper body) or bottom (lower body) */}
+        {activeZone && <ZoneDrawer zone={activeZone} side={activeSide} />}
       </div>
 
       <div style={{ display:"flex", gap:10, marginBottom:6, justifyContent:"center", fontSize:9, color:COLORS.textMuted, fontFamily:"'IBM Plex Sans',sans-serif", alignItems:"center" }}>
@@ -3143,8 +3250,6 @@ function BurnsCalc() {
         <span style={{ width:10, height:10, borderRadius:2, background:"rgba(229,62,62,0.5)", display:"inline-block" }}/><span>Full</span>
         <span style={{ width:10, height:10, borderRadius:2, background:"rgba(197,48,48,0.55)", display:"inline-block" }}/><span>Mixed</span>
       </div>
-
-      {activeZone && <ZonePopover zone={activeZone} side={activeSide} />}
 
       <div style={{ display:"flex", gap:6, marginTop:10, marginBottom:8 }}>
         {[{label:"Partial",val:totalPartial,color:COLORS.warning},{label:"Full",val:totalFull,color:COLORS.danger},{label:"Total TBSA",val:totalTBSA,color:COLORS.navy}].map(item=>(
@@ -3838,7 +3943,7 @@ export default function App() {
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "8px 16px 20px", background: `linear-gradient(transparent, ${COLORS.bg} 40%)`, pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto", display: "flex", justifyContent: "center" }}>
           <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 2, padding: "5px 12px", fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, fontWeight: 500, textAlign: "center" }}>
-            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v15
+            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v16
           </div>
         </div>
       </div>

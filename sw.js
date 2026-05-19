@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v13'; // Bumped from v3 → v13 to match app version
+const CACHE_NAME = 'pedicalc-v14'; // Bumped from v13 → v14 for ScoreRow subscore display fix
 const urlsToCache = [
   './',
   './index.html',

@@ -206,9 +206,30 @@ const CALC_REFERENCES = {
 
 
 function ScoreRow({ label, options, value, onChange }) {
+  // Strip "N — " prefix from button labels for cleaner touch targets
+  const buttonLabel = (raw) => {
+    const sep = raw.indexOf(" — ");
+    return sep !== -1 ? raw.slice(sep + 3) : raw;
+  };
+  const selected = options.find(o => o.value === value);
+  // Only show subscore in header for genuine ordinal numeric scales with 3+ options.
+  // Binary yes/no and categorical string values add no information there.
+  const allNumeric = options.every(o => typeof o.value === "number");
+  const showScore = selected !== undefined && allNumeric;
+
   return (
     <div style={{ marginBottom: 10 }}>
-      <div style={{ color: COLORS.navy, fontSize: 12, marginBottom: 5, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>{label}</div>
+      {/* Label row: category name left, subscore right (numeric multi-option only) */}
+      <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", marginBottom: 5 }}>
+        <div style={{ color: COLORS.navy, fontSize: 12, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>
+          {label}
+        </div>
+        {showScore && (
+          <div style={{ color: COLORS.accent, fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>
+            {selected.value}
+          </div>
+        )}
+      </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
         {options.map((opt) => (
           <button
@@ -229,7 +250,7 @@ function ScoreRow({ label, options, value, onChange }) {
               whiteSpace: "nowrap",
             }}
           >
-            {opt.label}
+            {buttonLabel(opt.label)}
           </button>
         ))}
       </div>
@@ -3812,7 +3833,7 @@ export default function App() {
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "8px 16px 20px", background: `linear-gradient(transparent, ${COLORS.bg} 40%)`, pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto", display: "flex", justifyContent: "center" }}>
           <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 2, padding: "5px 12px", fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, fontWeight: 500, textAlign: "center" }}>
-            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v13
+            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v14
           </div>
         </div>
       </div>

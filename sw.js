@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v14'; // Bumped from v13 → v14 for ScoreRow subscore display fix
+const CACHE_NAME = 'pedicalc-v15'; // Bumped v14 → v15: burn calculator LB data correction and summation fix
 const urlsToCache = [
   './',
   './index.html',

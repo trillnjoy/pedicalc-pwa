@@ -2937,24 +2937,24 @@ function BurnsCalc() {
 
   const LB = {
     head:      [9.5,  8.5,  6.5,  5.5,  4.5,  3.5],
-    neck:      [2,    2,    2,    2,    2,    2  ],
+    neck:      [1,    1,    1,    1,    1,    1  ],  // per surface (was doubled)
     trunkAnt:  [13,   13,   13,   13,   13,   13 ],
     trunkPost: [13,   13,   13,   13,   13,   13 ],
     genitalia: [1,    1,    1,    1,    1,    1  ],
-    upArmL:    [4,    4,    4,    4,    4,    4  ],
-    upArmR:    [4,    4,    4,    4,    4,    4  ],
-    forearmL:  [3,    3,    3,    3,    3,    3  ],
-    forearmR:  [3,    3,    3,    3,    3,    3  ],
-    handL:     [2.5,  2.5,  2.5,  2.5,  2.5,  2.5],
-    handR:     [2.5,  2.5,  2.5,  2.5,  2.5,  2.5],
+    upArmL:    [2,    2,    2,    2,    2,    2  ],  // per surface (was doubled)
+    upArmR:    [2,    2,    2,    2,    2,    2  ],  // per surface (was doubled)
+    forearmL:  [1.5,  1.5,  1.5,  1.5,  1.5,  1.5],  // per surface (was doubled)
+    forearmR:  [1.5,  1.5,  1.5,  1.5,  1.5,  1.5],  // per surface (was doubled)
+    handL:     [1.25, 1.25, 1.25, 1.25, 1.25, 1.25],  // per surface (was doubled)
+    handR:     [1.25, 1.25, 1.25, 1.25, 1.25, 1.25],  // per surface (was doubled)
     buttockL:  [2.5,  2.5,  2.5,  2.5,  2.5,  2.5],
     buttockR:  [2.5,  2.5,  2.5,  2.5,  2.5,  2.5],
     thighL:    [2.75, 3.25, 4.0,  4.25, 4.5,  4.75],
     thighR:    [2.75, 3.25, 4.0,  4.25, 4.5,  4.75],
     legL:      [2.5,  2.5,  2.75, 3.0,  3.25, 3.5],
     legR:      [2.5,  2.5,  2.75, 3.0,  3.25, 3.5],
-    footL:     [3.5,  3.5,  3.5,  3.5,  3.5,  3.5],
-    footR:     [3.5,  3.5,  3.5,  3.5,  3.5,  3.5],
+    footL:     [1.75, 1.75, 1.75, 1.75, 1.75, 1.75],  // per surface (was doubled)
+    footR:     [1.75, 1.75, 1.75, 1.75, 1.75, 1.75],  // per surface (was doubled)
   };
 
   const ZONE_LABELS = {
@@ -2996,7 +2996,12 @@ function BurnsCalc() {
   const getBurns = (side) => side === "front" ? burnsFront : burnsBack;
   const setBurnSide = (side, zone, depth, val) => {
     const setter = side === "front" ? setBurnsFront : setBurnsBack;
-    setter(b => ({ ...b, [zone]: { ...b[zone], [depth]: Math.min(100, Math.max(0, val)) } }));
+    const other  = depth === "partial" ? "full" : "partial";
+    setter(b => {
+      const otherVal = b[zone]?.[other] ?? 0;
+      const clamped = Math.min(100 - otherVal, Math.max(0, val));
+      return { ...b, [zone]: { ...b[zone], [depth]: clamped } };
+    });
   };
 
   const zonePct = (z) => LB[z]?.[lbIdx] ?? 0;
@@ -3012,9 +3017,9 @@ function BurnsCalc() {
     ["trunkAnt","genitalia"].forEach(z => { s += (burnsFront[z]?.partial/100)*zonePct(z); });
     // Back-only zones
     ["trunkPost","buttockL","buttockR"].forEach(z => { s += (burnsBack[z]?.partial/100)*zonePct(z); });
-    // Both: sum front + back contributions (each side is half the zone)
+    // Each surface tap contributes its full per-surface LB value — no averaging
     BOTH.forEach(z => {
-      s += ((burnsFront[z]?.partial/100) + (burnsBack[z]?.partial/100)) / 2 * zonePct(z);
+      s += (burnsFront[z]?.partial/100)*zonePct(z) + (burnsBack[z]?.partial/100)*zonePct(z);
     });
     return s;
   })();
@@ -3023,7 +3028,7 @@ function BurnsCalc() {
     ["trunkAnt","genitalia"].forEach(z => { s += (burnsFront[z]?.full/100)*zonePct(z); });
     ["trunkPost","buttockL","buttockR"].forEach(z => { s += (burnsBack[z]?.full/100)*zonePct(z); });
     BOTH.forEach(z => {
-      s += ((burnsFront[z]?.full/100) + (burnsBack[z]?.full/100)) / 2 * zonePct(z);
+      s += (burnsFront[z]?.full/100)*zonePct(z) + (burnsBack[z]?.full/100)*zonePct(z);
     });
     return s;
   })();
@@ -3145,7 +3150,7 @@ function BurnsCalc() {
         {[{label:"Partial",val:totalPartial,color:COLORS.warning},{label:"Full",val:totalFull,color:COLORS.danger},{label:"Total TBSA",val:totalTBSA,color:COLORS.navy}].map(item=>(
           <div key={item.label} style={{ flex:1, padding:"8px 10px", borderRadius:3, background:COLORS.surface, border:`1px solid ${COLORS.border}`, textAlign:"center" }}>
             <div style={{ fontSize:9, color:COLORS.textMuted, fontFamily:"'IBM Plex Sans',sans-serif", textTransform:"uppercase", marginBottom:3 }}>{item.label}</div>
-            <div style={{ fontSize:16, fontFamily:"'IBM Plex Mono',monospace", color:item.color, fontWeight:700 }}>{item.val.toFixed(1)}%</div>
+            <div style={{ fontSize:16, fontFamily:"'IBM Plex Mono',monospace", color:item.color, fontWeight:700 }}>{item.val.toFixed(2)}%</div>
           </div>
         ))}
       </div>
@@ -3833,7 +3838,7 @@ export default function App() {
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "8px 16px 20px", background: `linear-gradient(transparent, ${COLORS.bg} 40%)`, pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto", display: "flex", justifyContent: "center" }}>
           <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 2, padding: "5px 12px", fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, fontWeight: 500, textAlign: "center" }}>
-            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v14
+            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v15
           </div>
         </div>
       </div>

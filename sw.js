@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v13'; // v13 — Hyperbilirubinemia: full AAP 2022 rewrite, exact Supp Tables 1-4, escalation zone, effectiveRisk, graph+interp merged; calculator list reordered
+const CACHE_NAME = 'pedicalc-v13'; // Bumped from v3 → v13 to match app version
 const urlsToCache = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ const urlsToCache = [
   './icon-512.png'
 ];
 
+// Install service worker and cache resources
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -16,6 +17,7 @@ self.addEventListener('install', event => {
   );
 });
 
+// Activate service worker and clean up all prior cache versions
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(cacheNames => {
@@ -30,16 +32,19 @@ self.addEventListener('activate', event => {
   );
 });
 
+// Fetch strategy: Network first, fall back to cache
 self.addEventListener('fetch', event => {
   event.respondWith(
     fetch(event.request)
       .then(response => {
+        // Clone the response before caching
         const responseToCache = response.clone();
         caches.open(CACHE_NAME)
           .then(cache => cache.put(event.request, responseToCache));
         return response;
       })
       .catch(() => {
+        // Network failed, serve from cache
         return caches.match(event.request);
       })
   );

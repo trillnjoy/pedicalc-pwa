@@ -186,9 +186,10 @@ const CALC_REFERENCES = {
   },
   kawasaki: {
     title: "Kawasaki Disease Diagnostic Criteria",
-    reference: "Kawasaki T. Acute febrile mucocutaneous syndrome with lymphoid involvement with specific desquamation of the fingers and toes in children. Arerugi. 1967;16(3):178-222.",
-    guidelines: "AHA Scientific Statement: Diagnosis, Treatment, and Long-Term Management of Kawasaki Disease (2017)",
-    summary: "Classic: Fever ≥5 days + ≥4 of 5 principal features. Incomplete: Fever + 2-3 features + inflammatory markers + echo findings. Treatment: IVIG 2 g/kg + aspirin. Echo to assess coronary arteries."
+    reference: "McCrindle BW, et al. Diagnosis, Treatment, and Long-Term Management of Kawasaki Disease: A Scientific Statement for Health Professionals from the American Heart Association. Circulation. 2017;135(17):e927–e999. DOI: 10.1161/CIR.0000000000001295",
+    guidelines: "AHA 2017 Scientific Statement. Classic KD: fever ≥4 days + ≥4/5 principal features. Incomplete KD: fever + 2–3 features + inflammatory markers (CRP ≥3 mg/dL or ESR ≥40 mm/h) + echo findings (LAD or RCA z-score ≥2.5). High-risk: age ≤6 months or CA z-score ≥2.5. First-line: IVIG 2 g/kg + aspirin. Reassess at 36h post-IVIG.",
+    summary: "Classic: Fever ≥4 days + ≥4/5 principal clinical features (rash, conjunctival injection, oral changes, hands/feet changes, cervical lymphadenopathy). Incomplete: fewer features but supported by labs and echo. All suspected KD warrants echo, CBC with differential, ESR, CRP, BMP, ALT, GGT, TBili, UA.",
+    algorithmUrl: "https://www.ahajournals.org/cms/asset/c5d8c6b7-2a9a-43a0-bc00-3a9a43a0c700/cir.0000000000001295.fig01.jpg",
   },
   natfrac: {
     title: "Non-Accidental Trauma (NAT) Fracture Indicators",
@@ -205,7 +206,7 @@ const CALC_REFERENCES = {
 };
 
 
-function ScoreRow({ label, options, value, onChange }) {
+function ScoreRow({ label, options, value, onChange, cols }) {
   // Strip "N — " prefix from button labels for cleaner touch targets
   const buttonLabel = (raw) => {
     const sep = raw.indexOf(" — ");
@@ -237,6 +238,7 @@ function ScoreRow({ label, options, value, onChange }) {
             onClick={() => onChange(opt.value)}
             style={{
               flex: 1,
+              minWidth: cols ? `calc(${100/cols}% - 4px)` : undefined,
               padding: "8px 6px",
               borderRadius: 3,
               border: `1px solid #d0d4d9`,
@@ -262,6 +264,7 @@ function NumberInput({ label, value, onChange, min, max, step = 1, unit }) {
   const [focused, setFocused] = useState(false);
   const inputRef = useRef(null);
   const displayValue = (() => {
+    if (value === null || value === undefined || (typeof value === 'number' && isNaN(value))) return '';
     if (value === 0) return '0';
     const str = value.toString();
     return str.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
@@ -286,7 +289,7 @@ function NumberInput({ label, value, onChange, min, max, step = 1, unit }) {
         step={step}
         onChange={(e) => {
           const val = e.target.value;
-          onChange(val === '' ? 0 : parseFloat(val) || 0);
+          onChange(val === '' ? NaN : parseFloat(val) || 0);
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.keyCode === 13) {
@@ -1259,9 +1262,9 @@ function PEWSCalc() {
   const label = score>=6?"Immediate Intervention":score>=4?"Urgent Review":score>=2?"Close Monitoring":"Routine";
   return (
     <div>
-      <ScoreRow label="Behavior" value={vals.behavior} onChange={v=>set("behavior",v)} options={[{value:0,label:"0 — Playing/Appropriate"},{value:1,label:"1 — Sleeping"},{value:2,label:"2 — Irritable"},{value:3,label:"3 — Lethargic/Confused"}]} />
-      <ScoreRow label="Cardiovascular" value={vals.cardiovascular} onChange={v=>set("cardiovascular",v)} options={[{value:0,label:"0 — Pink, CRT ≤2s"},{value:1,label:"1 — Pale/CRT 3s"},{value:2,label:"2 — Gray/CRT 4s"},{value:3,label:"3 — Gray, mottled, CRT ≥5s"}]} />
-      <ScoreRow label="Respiratory" value={vals.respiratory} onChange={v=>set("respiratory",v)} options={[{value:0,label:"0 — Normal rate"},{value:1,label:"1 — >10 above normal"},{value:2,label:"2 — >20 above/retractions"},{value:3,label:"3 — >30 above/grunting"}]} />
+      <ScoreRow label="Behavior" value={vals.behavior} onChange={v=>set("behavior",v)} cols={2} options={[{value:0,label:"0 — Playing/Appropriate"},{value:1,label:"1 — Sleeping"},{value:2,label:"2 — Irritable"},{value:3,label:"3 — Lethargic/Confused"}]} />
+      <ScoreRow label="Cardiovascular" value={vals.cardiovascular} onChange={v=>set("cardiovascular",v)} cols={2} options={[{value:0,label:"0 — Pink, CR ≤2s"},{value:1,label:"1 — Pale/CR 3s"},{value:2,label:"2 — Gray/CR 4s"},{value:3,label:"3 — Gray, mottled, CR ≥5s"}]} />
+      <ScoreRow label="Respiratory" value={vals.respiratory} onChange={v=>set("respiratory",v)} cols={2} options={[{value:0,label:"0 — Nl rate"},{value:1,label:"1 — >10 over nl"},{value:2,label:"2 — >20 over nl/retractions"},{value:3,label:"3 — >30 over nl/grunting"}]} />
       <ScoreRow label="Nebulizer Treatments" value={vals.nebulizer} onChange={v=>set("nebulizer",v)} options={[{value:0,label:"0 — None in last hour"},{value:2,label:"2 — Any nebulizer"}]} />
       <ScoreRow label="Persistent Vomiting Post-Op" value={vals.vomit} onChange={v=>set("vomit",v)} options={[{value:0,label:"0 — No"},{value:2,label:"2 — Yes"}]} />
       {filled && <ResultBadge score={score} label={label} color={color} sublabel="Score 0–13 • Consider rapid response ≥6" />}
@@ -2678,43 +2681,52 @@ function U25GFRCalc() {
 // CALCULATOR: PEDIATRIC SEPSIS (qSOFA / SIRS)
 // ═══════════════════════════════════════════════════════════════════════════════
 function SepsisCalc() {
-  const [age, setAge] = useState(5);
-  const [hr, setHr] = useState(100);
-  const [rr, setRr] = useState(25);
-  const [temp, setTemp] = useState(37.5);
-  const [wbc, setWbc] = useState(12);
-  const [bands, setBands] = useState(5);
+  const [age,   setAge]   = useState(NaN);
+  const [hr,    setHr]    = useState(NaN);
+  const [rr,    setRr]    = useState(NaN);
+  const [temp,  setTemp]  = useState(NaN);
+  const [wbc,   setWbc]   = useState(NaN);
+  const [bands, setBands] = useState(NaN);
   const [focus, setFocus] = useState(0);
-  
+
+  const allEntered = [age, hr, rr, temp, wbc, bands].every(v => !isNaN(v));
+
   const ageSIRS = (a) => ({
     hr_high: a<1?180:a<5?140:a<12?130:110,
     rr_high: a<1?50:a<5?40:a<12?34:22,
     wbc_high: a<1?34:a<5?19.5:a<12?17.5:11,
     wbc_low: a<1?5:a<5?5:a<12?4.5:4.5
   });
-  const n = ageSIRS(age);
-  const sirsCriteria = [
+  const n = allEntered ? ageSIRS(age) : null;
+  const sirsCriteria = allEntered ? [
     hr > n.hr_high,
     rr > n.rr_high,
     temp < 36 || temp > 38.5,
     wbc > n.wbc_high || wbc < n.wbc_low || bands > 10
-  ].filter(Boolean).length;
-  
-  const sepsis = sirsCriteria >= 2 && focus > 0;
-  const sirs = sirsCriteria >= 2;
-  const color = sepsis ? COLORS.danger : sirs ? COLORS.warning : COLORS.success;
-  const label = sepsis ? "SEPSIS (SIRS + Infection)" : sirs ? "SIRS (no confirmed focus)" : "SIRS criteria not met";
+  ].filter(Boolean).length : 0;
+
+  const sepsis = allEntered && sirsCriteria >= 2 && focus > 0;
+  const sirs   = allEntered && sirsCriteria >= 2;
+  const color  = sepsis ? COLORS.danger : sirs ? COLORS.warning : COLORS.success;
+  const label  = sepsis ? "SEPSIS (SIRS + Infection)" : sirs ? "SIRS (no confirmed focus)" : "SIRS criteria not met";
   
   return (
     <div>
-      <NumberInput label="Age" value={age} onChange={setAge} min={0} max={18} step={0.5} unit="years" />
-      <NumberInput label="Heart Rate" value={hr} onChange={setHr} min={40} max={250} unit="bpm" />
-      <NumberInput label="Respiratory Rate" value={rr} onChange={setRr} min={10} max={80} unit="breaths/min" />
-      <NumberInput label="Temperature" value={temp} onChange={setTemp} min={32} max={42} step={0.1} unit="°C" />
-      <NumberInput label="WBC" value={wbc} onChange={setWbc} min={0} max={100} step={0.1} unit="×10³/μL" />
-      <NumberInput label="Band Forms" value={bands} onChange={setBands} min={0} max={100} unit="%" />
+      {/* Row 1: Age, HR, RR */}
+      <div style={{display:"flex", gap:8, marginBottom:0}}>
+        <div style={{flex:1, minWidth:0}}><NumberInput label="Age" value={age} onChange={setAge} min={0} max={18} step={0.5} unit="years" /></div>
+        <div style={{flex:1, minWidth:0}}><NumberInput label="HR" value={hr} onChange={setHr} min={40} max={250} unit="bpm" /></div>
+        <div style={{flex:1, minWidth:0}}><NumberInput label="RR" value={rr} onChange={setRr} min={10} max={80} unit="breaths/min" /></div>
+      </div>
+      {/* Row 2: Temp, WBC, Imm Neut */}
+      <div style={{display:"flex", gap:8, marginBottom:0}}>
+        <div style={{flex:1, minWidth:0}}><NumberInput label="Temp" value={temp} onChange={setTemp} min={32} max={42} step={0.1} unit="°C" /></div>
+        <div style={{flex:1, minWidth:0}}><NumberInput label="WBC" value={wbc} onChange={setWbc} min={0} max={100} step={0.1} unit="×10³/μL" /></div>
+        <div style={{flex:1, minWidth:0}}><NumberInput label="Imm Neut" value={bands} onChange={setBands} min={0} max={100} unit="%" /></div>
+      </div>
       <ScoreRow label="Suspected/Confirmed Infection Focus" value={focus} onChange={setFocus} options={[{value:0,label:"0 — None"},{value:1,label:"1 — Yes"}]} />
-      <ResultBadge score={`${sirsCriteria}/4`} label={label} color={color} sublabel={`HR >${n.hr_high} | RR >${n.rr_high} | Temp <36 or >38.5 | WBC criteria (age-adjusted)`} />
+      {allEntered && <ResultBadge score={`${sirsCriteria}/4`} label={label} color={color} sublabel={`HR >${n.hr_high} | RR >${n.rr_high} | Temp <36 or >38.5 | WBC criteria (age-adjusted)`} />}
+      {!allEntered && <div style={{fontSize:12,color:COLORS.textMuted,fontFamily:"'IBM Plex Sans',sans-serif",textAlign:"center",padding:"12px 0"}}>Enter all values to calculate</div>}
     </div>
   );
 }
@@ -3493,14 +3505,50 @@ function KawasakiCalc() {
   const label = complete ? "Complete Kawasaki Disease" : incomplete ? "Incomplete KD — Consider Echo/CRP" : "Criteria Not Met";
   return (
     <div>
-      <ScoreRow label="Fever" value={fever} onChange={setFever} options={[{value:0,label:"0 — No"},{value:1,label:"1 — Yes (≥38.5°C)"}]} />
-      <NumberInput label="Duration of Fever" value={days} onChange={setDays} min={0} max={30} unit="days" />
+      {/* Fever + Duration on same row */}
+      <div style={{display:"flex", gap:8, alignItems:"flex-start"}}>
+        <div style={{flex:2, minWidth:0}}>
+          <ScoreRow label="Fever (≥38.5°C)" value={fever} onChange={setFever} options={[{value:0,label:"0 — No"},{value:1,label:"1 — Yes"}]} />
+        </div>
+        <div style={{flex:1, minWidth:0}}>
+          <NumberInput label="Duration" value={days} onChange={setDays} min={0} max={30} unit="days" />
+        </div>
+      </div>
       <ScoreRow label="Rash (polymorphous exanthem)" value={vals.rash} onChange={v=>set("rash",v)} options={[{value:0,label:"0 — Absent"},{value:1,label:"1 — Present"}]} />
       <ScoreRow label="Hands/Feet (edema or desquamation)" value={vals.hands} onChange={v=>set("hands",v)} options={[{value:0,label:"0 — Absent"},{value:1,label:"1 — Present"}]} />
       <ScoreRow label="Bilateral Conjunctival Injection" value={vals.conj} onChange={v=>set("conj",v)} options={[{value:0,label:"0 — Absent"},{value:1,label:"1 — Present"}]} />
       <ScoreRow label="Lips/Oral Changes (strawberry tongue)" value={vals.lips} onChange={v=>set("lips",v)} options={[{value:0,label:"0 — Absent"},{value:1,label:"1 — Present"}]} />
       <ScoreRow label="Cervical Lymphadenopathy (≥1.5 cm)" value={vals.lymph} onChange={v=>set("lymph",v)} options={[{value:0,label:"0 — Absent"},{value:1,label:"1 — Present"}]} />
-      <ResultBadge score={`${criteria_met}/5`} label={label} color={color} sublabel={`AHA 2017 Criteria • IVIG 2g/kg if complete KD`} />
+      <ResultBadge score={`${criteria_met}/5`} label={label} color={color}
+        sublabel={complete
+          ? "AHA 2017 · IVIG 2 g/kg + aspirin · Echo to assess coronary arteries"
+          : incomplete
+          ? "Suspected Incomplete KD — consult KD team"
+          : "AHA 2017 Criteria"} />
+      {incomplete && !complete && (
+        <div style={{ marginTop: 8, borderRadius: 10, border: `1.5px solid ${COLORS.warning}`, overflow: "hidden" }}>
+          <div style={{ background: COLORS.warning, padding: "7px 12px" }}>
+            <div style={{ color: "white", fontSize: 11, fontWeight: 700, fontFamily: "'IBM Plex Sans',sans-serif", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              Incomplete KD Workup — AHA 2017
+            </div>
+          </div>
+          {[
+            { heading: "Required Labs", body: "CBC with differential · ESR · CRP · BMP · ALT · GGT · TBili · UA with microscopy" },
+            { heading: "Incomplete Criteria (labs)", body: "CRP ≥3 mg/dL or ESR ≥40 mm/h PLUS ≥3 of: anemia for age · platelets ≥450,000 · albumin ≤3 g/dL · elevated ALT · WBC ≥15,000/mm³ · urine WBC ≥10/hpf" },
+            { heading: "Echo Criteria", body: "LAD or RCA CA z-score ≥2.5 · OR ≥3 suggestive features: decreased LV function, mitral regurgitation, pericardial effusion, z-score 2.0–2.5" },
+            { heading: "High-Risk Features", body: "Age ≤6 months · LAD or RCA z-score ≥2.5 on baseline echo → intensify therapy" },
+            { heading: "Treatment if Criteria Met", body: "IVIG 2 g/kg + aspirin · Reassess at 36h post-IVIG · Repeat echo Q2–3 days or per cardiology" },
+          ].map((item, i, arr) => (
+            <div key={item.heading} style={{ padding: "9px 12px", borderBottom: i < arr.length - 1 ? `1px solid ${COLORS.border}` : "none", background: i % 2 === 0 ? COLORS.card : COLORS.surface }}>
+              <div style={{ color: COLORS.warning, fontSize: 10, fontWeight: 700, fontFamily: "'IBM Plex Sans',sans-serif", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 3 }}>{item.heading}</div>
+              <div style={{ color: COLORS.navy, fontSize: 12, fontFamily: "'IBM Plex Sans',sans-serif", lineHeight: 1.55 }}>{item.body}</div>
+            </div>
+          ))}
+          <div style={{ padding: "8px 12px", background: "rgba(0,102,204,0.06)", borderTop: `1px solid ${COLORS.border}` }}>
+            <div style={{ color: COLORS.textMuted, fontSize: 10, fontFamily: "'IBM Plex Mono',monospace" }}>McCrindle et al. Circulation. 2017;135:e927–e999</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3518,7 +3566,7 @@ function ChildAbuseFracCalc() {
   const label=score>=6?"High Concern for NAT":score>=3?"Moderate Concern — Full Workup":"Low Concern";
   return (
     <div>
-      <div style={{color:COLORS.textMuted,fontSize:11,marginBottom:10,fontFamily:"'DM Mono',monospace"}}>NON-ACCIDENTAL TRAUMA (NAT) FRACTURE RISK INDICATORS</div>
+
       <ScoreRow label="Age" value={vals.age} onChange={v=>set("age",v)} options={[{value:0,label:"0 — >2 years"},{value:2,label:"2 — 6–24 months"},{value:3,label:"3 — <6 months"}]} />
       <ScoreRow label="Fracture Type" value={vals.fx_type} onChange={v=>set("fx_type",v)} options={[{value:0,label:"0 — Simple spiral/transverse"},{value:2,label:"2 — Classic metaphyseal lesion"},{value:3,label:"3 — Posterior rib, spinous process"}]} />
       <ScoreRow label="History Consistent?" value={vals.history} onChange={v=>set("history",v)} options={[{value:0,label:"0 — Consistent"},{value:2,label:"2 — Inconsistent/changing"},{value:3,label:"3 — No history given"}]} />
@@ -3601,9 +3649,9 @@ const CALCULATORS = [
   // Common Rx
   { id:"dose",         category:"dosing",      name:"Common Drug Doses",            desc:"Weight-based pediatric dosing reference",                 component: DoseCalc },
   // Cardiac
+  { id:"kawasaki",     category:"cardiac",     name:"Kawasaki Disease Criteria",    desc:"AHA 2017 diagnostic criteria",                           component: KawasakiCalc },
   { id:"dvt",          category:"cardiac",     name:"Wells DVT Score",              desc:"DVT probability in children (adapted Wells)",             component: DVTCalc },
   { id:"qtc",          category:"cardiac",     name:"Corrected QT (Bazett)",        desc:"QTc calculation and risk assessment",                     component: QTcCalc },
-  { id:"kawasaki",     category:"cardiac",     name:"Kawasaki Disease Criteria",    desc:"AHA 2017 diagnostic criteria",                           component: KawasakiCalc },
   // Risk Scores
   { id:"sepsis",       category:"readmission", name:"Pediatric SIRS/Sepsis",        desc:"Age-adjusted SIRS criteria and sepsis screening",         component: SepsisCalc },
   { id:"natfrac",      category:"readmission", name:"NAT Fracture Risk",            desc:"Non-accidental trauma fracture indicators",               component: ChildAbuseFracCalc },
@@ -3957,6 +4005,20 @@ export default function App() {
               </div>
             </div>
 
+            {CALC_REFERENCES[activeCalc.id].algorithmUrl && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ color: COLORS.textMuted, fontSize: 10, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 500, marginBottom: 6 }}>
+                  Clinical Algorithm
+                </div>
+                <img
+                  src={CALC_REFERENCES[activeCalc.id].algorithmUrl}
+                  alt="Clinical algorithm"
+                  style={{ width: "100%", borderRadius: 3, border: `1px solid ${COLORS.border}` }}
+                  onError={e => { e.target.style.display = 'none'; }}
+                />
+              </div>
+            )}
+
             {CALC_REFERENCES[activeCalc.id].showErrorChart && <FluidErrorChart />}
           </div>
         </div>
@@ -3966,7 +4028,7 @@ export default function App() {
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "8px 16px 20px", background: `linear-gradient(transparent, ${COLORS.bg} 40%)`, pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto", display: "flex", justifyContent: "center" }}>
           <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 2, padding: "5px 12px", fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, fontWeight: 500, textAlign: "center" }}>
-            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v18
+            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v19
           </div>
         </div>
       </div>

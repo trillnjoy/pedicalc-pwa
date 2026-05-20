@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v18'; // v17 → v18: dragVal ref fix for detente snap on iOS
+const CACHE_NAME = 'pedicalc-v19'; // v18 → v19: PEWS layout, NAT redundancy, SIRS layout/defaults, KD reorder/incomplete guidance
 const urlsToCache = [
   './',
   './index.html',

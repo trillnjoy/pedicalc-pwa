@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v19'; // v18 → v19: PEWS layout, NAT redundancy, SIRS layout/defaults, KD reorder/incomplete guidance
+const CACHE_NAME = 'pedicalc-v21'; // v20 → v21: BilirubinCalc restored to v13 — full AAP 2022 tables, three-tier decision logic, B/A ratio, SVG graph; KD required labs updated
 const urlsToCache = [
   './',
   './index.html',

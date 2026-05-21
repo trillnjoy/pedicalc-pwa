@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v21'; // v20 → v21: BilirubinCalc restored to v13 — full AAP 2022 tables, three-tier decision logic, B/A ratio, SVG graph; KD required labs updated
+const CACHE_NAME = 'pedicalc-v22'; // v21 → v22: GrowthCalc integrated — portrait 8:11 chart, sidebar percentile/Z panel, clinical age display logic, collapsible curve options, MM/DD/YYYY spinners, palette unified to COLORS
 const urlsToCache = [
   './',
   './index.html',

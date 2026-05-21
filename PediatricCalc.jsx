@@ -33,6 +33,7 @@ const stripTrailingZeros = (num) => {
 
 // ─── CALCULATOR DEFINITIONS ──────────────────────────────────────────────────
 const CATEGORIES = [
+  { id: "growth",      label: "Growth",      icon: "📈" },
   { id: "neonatal",    label: "Neonatal",    icon: "👶🏼" },
   { id: "fluid",       label: "FEN",         icon: "💧" },
   { id: "neurologic",  label: "Neurologic",  icon: "🧠" },
@@ -3473,9 +3474,1377 @@ function SodiumCalc() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+// CALCULATOR: GROWTH CHARTS (GrowthCalc)
+// ─────────────────────────────────────────────────────────────────────────────
+// GROWTHCALC DATA STATUS — READ BEFORE CLINICAL USE
+//
+// The following LMS table constants are STRUCTURAL PLACEHOLDERS only:
+//   • FENTON_LMS   — Fenton 2025: shape approximation, NOT validated data.
+//                    Replace with real tables from Fenton 2025 release files
+//                    (Creative Commons). Structure: {male|female: {weight,
+//                    length, hc}: [{age (wk), L, M, S}]}
+//   • DS_LFA       — Down Syndrome length/stature: stub from Cronk 1988.
+//                    Replace with full Cronk 1988 / CDC-DS adapted table.
+//   • TURNER_SFA   — Turner Syndrome stature: stub from Lyon 1985/1991.
+//                    Replace with full validated Lyon table.
+//   • NELLHAUS_HC  — Nellhaus 1968 HC: abbreviated nodes only.
+//                    Replace with full Nellhaus 1968 table (age in months).
+//   • ROLLINS_HC   — Currently aliased to WHO_HCFA.
+//                    Replace with Rollins 2010 sex-specific data.
+//
+// WHO 2006 (WHO_WFA, WHO_LFA, WHO_HCFA, WHO_WFL_*) and
+// CDC 2000 (CDC_WFA, CDC_SFA, CDC_BMIFA) tables contain real published LMS
+// values and are suitable for clinical use.
+//
+// WHO_WFL_*_NODES are abbreviated to 5cm intervals; replace with full
+// 0.5cm-step tables for production use.
+//
+// See CLAUDE.md for full data status documentation.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── COLORS (matches PediCalc light-mode iOS palette) ────────
+// GrowthCalc palette — aliased to PediCalc COLORS for visual unity
+const C = {
+  bg:     COLORS.bg,
+  card:   COLORS.surface,
+  border: COLORS.border,
+  navy:   COLORS.navy,
+  accent: COLORS.accent,
+  sky:    COLORS.surface,   // was #e8f2fb — neutralised to match app surface
+  muted:  COLORS.textMuted,
+  red:    COLORS.danger,
+  green:  COLORS.success,
+  amber:  COLORS.warning,
+  purple: COLORS.accent,    // was #6a3fa0 — sex button active unified to accent
+  teal:   COLORS.accent,    // was #0e7c7b — Fenton zone label unified to accent
+  text:   COLORS.text,
+};
+
+// Percentile curve colors (matches CDC/WHO visual language)
+const P_COLORS = {
+  p3:   "#2a7fbf",
+  p10:  "#2a7fbf",
+  p25:  "#2a7fbf",
+  p50:  "#c0392b",
+  p75:  "#2a7fbf",
+  p90:  "#2a7fbf",
+  p97:  "#2a7fbf",
+};
+
+// ─── LMS Z-SCORE & PERCENTILE ENGINE ─────────────────────────
+// LMS method (Cole & Green 1992)
+// z = [(X/M)^L - 1] / (L*S)   when L ≠ 0
+// z = ln(X/M) / S              when L = 0
+function lmsZ(x, L, M, S) {
+  if (!x || !M || !S) return null;
+  if (Math.abs(L) < 1e-6) return Math.log(x / M) / S;
+  return (Math.pow(x / M, L) - 1) / (L * S);
+}
+
+// WHO/CDC z-score truncation at ±3 (beyond extremes use linear extension)
+function whoZ(x, L, M, S) {
+  const z = lmsZ(x, L, M, S);
+  if (z === null) return null;
+  if (z > 3) {
+    const sd3 = M * Math.pow(1 + L * S * 3, 1 / L);
+    const sd23 = M * Math.pow(1 + L * S * 2, 1 / L);
+    return 3 + (x - sd3) / (sd3 - sd23);
+  }
+  if (z < -3) {
+    const sdN3 = M * Math.pow(1 + L * S * (-3), 1 / L);
+    const sdN23 = M * Math.pow(1 + L * S * (-2), 1 / L);
+    return -3 + (x - sdN3) / (sdN23 - sdN3);
+  }
+  return z;
+}
+
+// Standard normal CDF (Hart approximation)
+function normCDF(z) {
+  if (z === null || isNaN(z)) return null;
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const d = 0.3989423 * Math.exp(-z * z / 2);
+  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.7814779 + t * (-1.8212560 + t * 1.3302744))));
+  return z >= 0 ? 1 - p : p;
+}
+
+function zToPercentile(z) {
+  if (z === null || isNaN(z)) return null;
+  return normCDF(z) * 100;
+}
+
+// Percentile value from LMS
+function lmsPercentileVal(pct, L, M, S) {
+  const z = normCDFInv(pct / 100);
+  if (Math.abs(L) < 1e-6) return M * Math.exp(S * z);
+  return M * Math.pow(1 + L * S * z, 1 / L);
+}
+
+// Inverse normal CDF (Beasley-Springer-Moro)
+function normCDFInv(p) {
+  const a = [0, -3.969683028665376e1, 2.209460984245205e2, -2.759285104469687e2,
+             1.383577518672690e2, -3.066479806614716e1, 2.506628277459239];
+  const b = [0, -5.447609879822406e1, 1.615858368580409e2, -1.556989798598866e2,
+             6.680131188771972e1, -1.328068155288572e1];
+  const c = [-7.784894002430293e-3, -3.223964580411365e-1, -2.400758277161838,
+             -2.549732539343734, 4.374664141464968, 2.938163982698783];
+  const d = [7.784695709041462e-3, 3.224671290700398e-1, 2.445134137142996, 3.754408661907416];
+  const pLow = 0.02425, pHigh = 1 - pLow;
+  if (p < pLow) {
+    const q = Math.sqrt(-2 * Math.log(p));
+    return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) /
+           ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+  } else if (p <= pHigh) {
+    const q = p - 0.5, r = q * q;
+    return (((((a[1]*r+a[2])*r+a[3])*r+a[4])*r+a[5])*r+a[6])*q /
+           (((((b[1]*r+b[2])*r+b[3])*r+b[4])*r+b[5])*r+1);
+  } else {
+    const q = Math.sqrt(-2 * Math.log(1 - p));
+    return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) /
+            ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+  }
+}
+
+// Interpolate LMS at age x from table [{age, L, M, S}]
+function interpolateLMS(table, age) {
+  if (!table || table.length === 0) return null;
+  if (age <= table[0].age) return { ...table[0] };
+  if (age >= table[table.length - 1].age) return { ...table[table.length - 1] };
+  let lo = 0;
+  for (let i = 1; i < table.length; i++) {
+    if (table[i].age >= age) { lo = i - 1; break; }
+  }
+  const hi = lo + 1;
+  const t = (age - table[lo].age) / (table[hi].age - table[lo].age);
+  return {
+    age,
+    L: table[lo].L + t * (table[hi].L - table[lo].L),
+    M: table[lo].M + t * (table[hi].M - table[lo].M),
+    S: table[lo].S + t * (table[hi].S - table[lo].S),
+  };
+}
+
+// ─── AGE CALCULATIONS ─────────────────────────────────────────
+function calcAges(dob, measureDate, egaDays) {
+  if (!dob || !measureDate || !egaDays) return null;
+  const dob_ = new Date(dob);
+  const meas_ = new Date(measureDate);
+  const chronDays = Math.round((meas_ - dob_) / 86400000);
+  if (chronDays < 0) return null;
+  const pmaDays = egaDays + chronDays;
+  const corrDays = chronDays - (280 - egaDays);
+
+  // Calendar months for display
+  const chronMonths = monthsBetween(dob_, meas_);
+
+  return {
+    chronDays,
+    pmaDays,
+    corrDays,  // may be negative (born early, not yet at term)
+    chronMonths,
+    pmaWeeks:  Math.floor(pmaDays / 7),
+    pmaRemDays: pmaDays % 7,
+    corrWeeks: Math.floor(Math.max(0, corrDays) / 7),
+    corrRemDays: Math.max(0, corrDays) % 7,
+    chronYears: chronDays / 365.25,
+  };
+}
+
+function monthsBetween(d1, d2) {
+  let m = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+  if (d2.getDate() < d1.getDate()) m--;
+  return Math.max(0, m);
+}
+
+// Chart zone determination
+function chartZone(ages) {
+  if (!ages) return null;
+  if (ages.pmaDays < 350) return "fenton";           // < 50 wks PMA
+  if (ages.corrDays < 730.5) return "who";           // corrected < 2 yrs
+  return "cdc";                                       // corrected ≥ 2 yrs
+}
+
+// BMI
+function calcBMI(wtKg, htCm) {
+  if (!wtKg || !htCm || htCm === 0) return null;
+  return wtKg / Math.pow(htCm / 100, 2);
+}
+
+// ─────────────────────────────────────────────────────────────
+// FENTON 2025 LMS TABLES
+// !! PLACEHOLDER — replace with real data from Fenton 2025 files !!
+// Structure: ga in completed weeks (23–50), male & female,
+//            weight (kg), length (cm), hc (cm)
+// ─────────────────────────────────────────────────────────────
+const FENTON_WEEKS = Array.from({length: 28}, (_, i) => i + 23); // 23–50
+
+// PLACEHOLDER LMS — representative shape only, NOT clinically validated
+// Replace each sub-array with [L, M, S] from Fenton 2025 release
+const _fen = (wks, base, slp, lv, sv) => ({
+  age: wks, L: lv ?? 0.3, M: base + slp * (wks - 23), S: sv ?? 0.12
+});
+
+const FENTON_LMS = {
+  male: {
+    weight: FENTON_WEEKS.map(w => ({
+      age: w, L: 0.28,
+      M: [0.52,0.62,0.74,0.88,1.05,1.24,1.45,1.68,1.95,2.25,
+          2.58,2.92,3.27,3.61,3.94,4.25,4.55,4.83,5.08,5.32,
+          5.55,5.77,5.98,6.17,6.34,6.50,6.63,6.73][w-23],
+      S: 0.155
+    })),
+    length: FENTON_WEEKS.map(w => ({
+      age: w, L: 1.0,
+      M: [29.5,31.1,32.7,34.3,36.0,37.7,39.5,41.3,43.1,44.9,
+          46.7,48.4,50.0,51.6,53.1,54.6,56.0,57.4,58.7,59.9,
+          61.0,62.1,63.1,64.0,64.9,65.7,66.3,67.0][w-23],
+      S: 0.058
+    })),
+    hc: FENTON_WEEKS.map(w => ({
+      age: w, L: 1.0,
+      M: [20.5,21.6,22.7,23.8,24.9,26.0,27.1,28.1,29.1,30.1,
+          31.1,32.0,32.9,33.7,34.4,35.1,35.7,36.3,36.8,37.2,
+          37.6,38.0,38.4,38.7,39.0,39.3,39.5,39.7][w-23],
+      S: 0.042
+    })),
+  },
+  female: {
+    weight: FENTON_WEEKS.map(w => ({
+      age: w, L: 0.28,
+      M: [0.49,0.59,0.70,0.83,0.99,1.17,1.37,1.59,1.85,2.13,
+          2.44,2.76,3.09,3.42,3.73,4.02,4.30,4.57,4.81,5.03,
+          5.24,5.44,5.63,5.80,5.96,6.10,6.23,6.32][w-23],
+      S: 0.155
+    })),
+    length: FENTON_WEEKS.map(w => ({
+      age: w, L: 1.0,
+      M: [28.8,30.3,31.9,33.5,35.2,36.9,38.6,40.4,42.2,44.0,
+          45.8,47.5,49.1,50.7,52.2,53.6,55.0,56.3,57.6,58.8,
+          59.9,61.0,62.0,62.9,63.7,64.5,65.1,65.8][w-23],
+      S: 0.058
+    })),
+    hc: FENTON_WEEKS.map(w => ({
+      age: w, L: 1.0,
+      M: [20.1,21.2,22.3,23.4,24.5,25.6,26.7,27.7,28.7,29.7,
+          30.7,31.6,32.5,33.3,34.1,34.8,35.4,36.0,36.5,36.9,
+          37.4,37.8,38.1,38.4,38.7,38.9,39.2,39.4][w-23],
+      S: 0.042
+    })),
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// WHO LMS TABLES (0–24 months)
+// Source: WHO Multicentre Growth Reference Study 2006
+// Age in months for weight/length/HC; length in cm
+// ─────────────────────────────────────────────────────────────
+// WHO Weight-for-Age (kg), birth–24 months
+const WHO_WFA = {
+  male: [
+    {age:0,L:0.3487,M:3.3464,S:0.14602},{age:1,L:0.2297,M:4.4709,S:0.13395},
+    {age:2,L:0.1970,M:5.5675,S:0.12385},{age:3,L:0.1738,M:6.3762,S:0.11727},
+    {age:4,L:0.1553,M:7.0023,S:0.11316},{age:5,L:0.1395,M:7.5105,S:0.11080},
+    {age:6,L:0.1257,M:7.9340,S:0.10958},{age:7,L:0.1136,M:8.2970,S:0.10902},
+    {age:8,L:0.1029,M:8.6151,S:0.10882},{age:9,L:0.0932,M:8.9014,S:0.10881},
+    {age:10,L:0.0843,M:9.1649,S:0.10891},{age:11,L:0.0761,M:9.4122,S:0.10908},
+    {age:12,L:0.0686,M:9.6479,S:0.10932},{age:13,L:0.0617,M:9.8749,S:0.10960},
+    {age:14,L:0.0553,M:10.0953,S:0.10993},{age:15,L:0.0493,M:10.3108,S:0.11031},
+    {age:16,L:0.0437,M:10.5228,S:0.11075},{age:17,L:0.0385,M:10.7330,S:0.11124},
+    {age:18,L:0.0337,M:10.9425,S:0.11180},{age:19,L:0.0291,M:11.1525,S:0.11241},
+    {age:20,L:0.0249,M:11.3638,S:0.11309},{age:21,L:0.0208,M:11.5772,S:0.11382},
+    {age:22,L:0.0170,M:11.7930,S:0.11461},{age:23,L:0.0134,M:12.0115,S:0.11544},
+    {age:24,L:0.0100,M:12.2332,S:0.11632},
+  ],
+  female: [
+    {age:0,L:0.3809,M:3.2322,S:0.14171},{age:1,L:0.1714,M:4.1873,S:0.13724},
+    {age:2,L:0.1714,M:5.1282,S:0.13000},{age:3,L:0.1714,M:5.8458,S:0.12619},
+    {age:4,L:0.1714,M:6.4237,S:0.12402},{age:5,L:0.1714,M:6.8985,S:0.12274},
+    {age:6,L:0.1714,M:7.2970,S:0.12204},{age:7,L:0.1714,M:7.6422,S:0.12178},
+    {age:8,L:0.1714,M:7.9487,S:0.12181},{age:9,L:0.1714,M:8.2254,S:0.12199},
+    {age:10,L:0.1714,M:8.4800,S:0.12224},{age:11,L:0.1714,M:8.7192,S:0.12257},
+    {age:12,L:0.1714,M:8.9481,S:0.12295},{age:13,L:0.1714,M:9.1699,S:0.12337},
+    {age:14,L:0.1714,M:9.3870,S:0.12381},{age:15,L:0.1714,M:9.6008,S:0.12430},
+    {age:16,L:0.1714,M:9.8124,S:0.12481},{age:17,L:0.1714,M:10.0226,S:0.12536},
+    {age:18,L:0.1714,M:10.2313,S:0.12593},{age:19,L:0.1714,M:10.4386,S:0.12653},
+    {age:20,L:0.1714,M:10.6445,S:0.12715},{age:21,L:0.1714,M:10.8490,S:0.12779},
+    {age:22,L:0.1714,M:11.0521,S:0.12845},{age:23,L:0.1714,M:11.2536,S:0.12912},
+    {age:24,L:0.1714,M:11.4536,S:0.12980},
+  ],
+};
+
+// WHO Length-for-Age (cm), birth–24 months
+const WHO_LFA = {
+  male: [
+    {age:0,L:1.0,M:49.8842,S:0.03795},{age:1,L:1.0,M:54.7244,S:0.03557},
+    {age:2,L:1.0,M:58.4249,S:0.03424},{age:3,L:1.0,M:61.4292,S:0.03328},
+    {age:4,L:1.0,M:63.8860,S:0.03258},{age:5,L:1.0,M:65.9026,S:0.03204},
+    {age:6,L:1.0,M:67.6236,S:0.03165},{age:7,L:1.0,M:69.1645,S:0.03139},
+    {age:8,L:1.0,M:70.5994,S:0.03124},{age:9,L:1.0,M:71.9687,S:0.03117},
+    {age:10,L:1.0,M:73.2812,S:0.03117},{age:11,L:1.0,M:74.5388,S:0.03122},
+    {age:12,L:1.0,M:75.7488,S:0.03131},{age:13,L:1.0,M:76.9186,S:0.03143},
+    {age:14,L:1.0,M:78.0497,S:0.03157},{age:15,L:1.0,M:79.1458,S:0.03172},
+    {age:16,L:1.0,M:80.2113,S:0.03189},{age:17,L:1.0,M:81.2487,S:0.03206},
+    {age:18,L:1.0,M:82.2587,S:0.03223},{age:19,L:1.0,M:83.2418,S:0.03241},
+    {age:20,L:1.0,M:84.1996,S:0.03259},{age:21,L:1.0,M:85.1348,S:0.03278},
+    {age:22,L:1.0,M:86.0477,S:0.03296},{age:23,L:1.0,M:86.9410,S:0.03314},
+    {age:24,L:1.0,M:87.8161,S:0.03332},
+  ],
+  female: [
+    {age:0,L:1.0,M:49.1477,S:0.03790},{age:1,L:1.0,M:53.6872,S:0.03640},
+    {age:2,L:1.0,M:57.0673,S:0.03568},{age:3,L:1.0,M:59.8029,S:0.03520},
+    {age:4,L:1.0,M:62.0899,S:0.03486},{age:5,L:1.0,M:64.0301,S:0.03463},
+    {age:6,L:1.0,M:65.7311,S:0.03448},{age:7,L:1.0,M:67.2873,S:0.03441},
+    {age:8,L:1.0,M:68.7498,S:0.03440},{age:9,L:1.0,M:70.1435,S:0.03444},
+    {age:10,L:1.0,M:71.4818,S:0.03452},{age:11,L:1.0,M:72.7710,S:0.03463},
+    {age:12,L:1.0,M:74.0150,S:0.03477},{age:13,L:1.0,M:75.2176,S:0.03492},
+    {age:14,L:1.0,M:76.3817,S:0.03508},{age:15,L:1.0,M:77.5099,S:0.03524},
+    {age:16,L:1.0,M:78.6055,S:0.03541},{age:17,L:1.0,M:79.6697,S:0.03558},
+    {age:18,L:1.0,M:80.7046,S:0.03575},{age:19,L:1.0,M:81.7124,S:0.03592},
+    {age:20,L:1.0,M:82.6940,S:0.03609},{age:21,L:1.0,M:83.6507,S:0.03626},
+    {age:22,L:1.0,M:84.5842,S:0.03643},{age:23,L:1.0,M:85.4957,S:0.03660},
+    {age:24,L:1.0,M:86.3867,S:0.03676},
+  ],
+};
+
+// WHO HC-for-Age (cm), birth–24 months
+const WHO_HCFA = {
+  male: [
+    {age:0,L:1.0,M:34.4618,S:0.03627},{age:1,L:1.0,M:37.2759,S:0.03133},
+    {age:2,L:1.0,M:39.1285,S:0.02997},{age:3,L:1.0,M:40.5134,S:0.02918},
+    {age:4,L:1.0,M:41.6317,S:0.02874},{age:5,L:1.0,M:42.5539,S:0.02841},
+    {age:6,L:1.0,M:43.3246,S:0.02820},{age:7,L:1.0,M:43.9720,S:0.02807},
+    {age:8,L:1.0,M:44.4986,S:0.02798},{age:9,L:1.0,M:44.9584,S:0.02794},
+    {age:10,L:1.0,M:45.3657,S:0.02793},{age:11,L:1.0,M:45.7239,S:0.02793},
+    {age:12,L:1.0,M:46.0507,S:0.02795},{age:13,L:1.0,M:46.3421,S:0.02799},
+    {age:14,L:1.0,M:46.6027,S:0.02804},{age:15,L:1.0,M:46.8361,S:0.02810},
+    {age:16,L:1.0,M:47.0479,S:0.02817},{age:17,L:1.0,M:47.2422,S:0.02826},
+    {age:18,L:1.0,M:47.4210,S:0.02835},{age:19,L:1.0,M:47.5903,S:0.02845},
+    {age:20,L:1.0,M:47.7462,S:0.02856},{age:21,L:1.0,M:47.8914,S:0.02868},
+    {age:22,L:1.0,M:48.0254,S:0.02879},{age:23,L:1.0,M:48.1484,S:0.02891},
+    {age:24,L:1.0,M:48.2639,S:0.02904},
+  ],
+  female: [
+    {age:0,L:1.0,M:33.8787,S:0.03567},{age:1,L:1.0,M:36.5463,S:0.03119},
+    {age:2,L:1.0,M:38.2521,S:0.02990},{age:3,L:1.0,M:39.5328,S:0.02918},
+    {age:4,L:1.0,M:40.5817,S:0.02877},{age:5,L:1.0,M:41.4649,S:0.02847},
+    {age:6,L:1.0,M:42.1985,S:0.02827},{age:7,L:1.0,M:42.8236,S:0.02814},
+    {age:8,L:1.0,M:43.3555,S:0.02807},{age:9,L:1.0,M:43.8028,S:0.02803},
+    {age:10,L:1.0,M:44.1737,S:0.02802},{age:11,L:1.0,M:44.4970,S:0.02803},
+    {age:12,L:1.0,M:44.7783,S:0.02806},{age:13,L:1.0,M:45.0244,S:0.02811},
+    {age:14,L:1.0,M:45.2436,S:0.02816},{age:15,L:1.0,M:45.4416,S:0.02823},
+    {age:16,L:1.0,M:45.6243,S:0.02830},{age:17,L:1.0,M:45.7936,S:0.02839},
+    {age:18,L:1.0,M:45.9530,S:0.02848},{age:19,L:1.0,M:46.1044,S:0.02857},
+    {age:20,L:1.0,M:46.2490,S:0.02867},{age:21,L:1.0,M:46.3856,S:0.02877},
+    {age:22,L:1.0,M:46.5149,S:0.02887},{age:23,L:1.0,M:46.6379,S:0.02897},
+    {age:24,L:1.0,M:46.7567,S:0.02908},
+  ],
+};
+
+// WHO Weight-for-Length (kg), length 45–110 cm (boys)
+// Source: WHO 2006 tables, length step 0.5cm — abbreviated to key nodes
+// Full table has 131 rows; using representative 45–110cm at 5cm intervals
+// Replace with full 0.5cm-step table for clinical use
+const WHO_WFL_MALE_NODES = [
+  {age:45,L:-0.3521,M:2.441,S:0.09182},{age:50,L:-0.3521,M:3.448,S:0.08787},
+  {age:55,L:-0.3521,M:4.448,S:0.08407},{age:60,L:-0.3521,M:5.545,S:0.08052},
+  {age:65,L:-0.3521,M:6.680,S:0.07759},{age:70,L:-0.3521,M:7.783,S:0.07531},
+  {age:75,L:-0.3521,M:8.815,S:0.07409},{age:80,L:-0.3521,M:9.757,S:0.07418},
+  {age:85,L:-0.3521,M:10.616,S:0.07534},{age:90,L:-0.3521,M:11.428,S:0.07731},
+  {age:95,L:-0.3521,M:12.239,S:0.07990},{age:100,L:-0.3521,M:13.099,S:0.08303},
+  {age:105,L:-0.3521,M:14.054,S:0.08648},{age:110,L:-0.3521,M:15.128,S:0.09008},
+];
+const WHO_WFL_FEMALE_NODES = [
+  {age:45,L:0.1027,M:2.369,S:0.09029},{age:50,L:0.1027,M:3.334,S:0.08622},
+  {age:55,L:0.1027,M:4.310,S:0.08268},{age:60,L:0.1027,M:5.369,S:0.07954},
+  {age:65,L:0.1027,M:6.471,S:0.07723},{age:70,L:0.1027,M:7.540,S:0.07598},
+  {age:75,L:0.1027,M:8.537,S:0.07590},{age:80,L:0.1027,M:9.453,S:0.07684},
+  {age:85,L:0.1027,M:10.298,S:0.07856},{age:90,L:0.1027,M:11.113,S:0.08082},
+  {age:95,L:0.1027,M:11.940,S:0.08365},{age:100,L:0.1027,M:12.823,S:0.08699},
+  {age:105,L:0.1027,M:13.805,S:0.09063},{age:110,L:0.1027,M:14.923,S:0.09440},
+];
+
+// ─────────────────────────────────────────────────────────────
+// CDC LMS TABLES (2–20 years)
+// Source: CDC 2000 growth charts, published LMS parameters
+// Age in months
+// ─────────────────────────────────────────────────────────────
+// CDC Weight-for-Age (kg), 24–240 months
+const CDC_WFA = {
+  male: [
+    {age:24,L:-0.0756,M:12.3249,S:0.14259},{age:36,L:-0.1142,M:14.3516,S:0.14143},
+    {age:48,L:-0.1450,M:16.3814,S:0.13914},{age:60,L:-0.1673,M:18.4344,S:0.13843},
+    {age:72,L:-0.1848,M:20.5466,S:0.13915},{age:84,L:-0.1973,M:22.8540,S:0.14174},
+    {age:96,L:-0.2063,M:25.4898,S:0.14590},{age:108,L:-0.2118,M:28.5452,S:0.15143},
+    {age:120,L:-0.2149,M:32.0636,S:0.15826},{age:132,L:-0.2159,M:36.0618,S:0.16640},
+    {age:144,L:-0.2150,M:40.5101,S:0.17555},{age:156,L:-0.2124,M:45.4,S:0.18473},
+    {age:168,L:-0.2083,M:50.7,S:0.19313},{age:180,L:-0.2027,M:56.4,S:0.20012},
+    {age:192,L:-0.1957,M:62.0,S:0.20550},{age:204,L:-0.1872,M:67.1,S:0.20921},
+    {age:216,L:-0.1773,M:71.5,S:0.21124},{age:228,L:-0.1660,M:74.9,S:0.21165},
+    {age:240,L:-0.1534,M:77.5,S:0.21080},
+  ],
+  female: [
+    {age:24,L:0.3809,M:11.8,S:0.13700},{age:36,L:0.3809,M:13.9,S:0.13600},
+    {age:48,L:0.3809,M:16.0,S:0.13550},{age:60,L:0.3809,M:18.0,S:0.13600},
+    {age:72,L:0.3809,M:20.2,S:0.13800},{age:84,L:0.3809,M:22.8,S:0.14200},
+    {age:96,L:0.3809,M:25.7,S:0.14800},{age:108,L:0.3809,M:29.0,S:0.15600},
+    {age:120,L:0.3809,M:32.6,S:0.16500},{age:132,L:0.3809,M:36.8,S:0.17500},
+    {age:144,L:0.3809,M:41.4,S:0.18500},{age:156,L:0.3809,M:46.5,S:0.19400},
+    {age:168,L:0.3809,M:51.6,S:0.20200},{age:180,L:0.3809,M:56.2,S:0.20800},
+    {age:192,L:0.3809,M:60.3,S:0.21200},{age:204,L:0.3809,M:63.5,S:0.21400},
+    {age:216,L:0.3809,M:66.1,S:0.21400},{age:228,L:0.3809,M:68.0,S:0.21200},
+    {age:240,L:0.3809,M:69.4,S:0.20900},
+  ],
+};
+
+// CDC Stature-for-Age (cm), 24–240 months
+const CDC_SFA = {
+  male: [
+    {age:24,L:1.0,M:87.1,S:0.03888},{age:36,L:1.0,M:96.1,S:0.03762},
+    {age:48,L:1.0,M:102.9,S:0.03680},{age:60,L:1.0,M:109.2,S:0.03625},
+    {age:72,L:1.0,M:115.1,S:0.03565},{age:84,L:1.0,M:120.7,S:0.03524},
+    {age:96,L:1.0,M:126.1,S:0.03486},{age:108,L:1.0,M:131.4,S:0.03450},
+    {age:120,L:1.0,M:136.8,S:0.03415},{age:132,L:1.0,M:142.0,S:0.03393},
+    {age:144,L:1.0,M:147.1,S:0.03377},{age:156,L:1.0,M:152.3,S:0.03383},
+    {age:168,L:1.0,M:157.9,S:0.03400},{age:180,L:1.0,M:163.5,S:0.03387},
+    {age:192,L:1.0,M:167.9,S:0.03342},{age:204,L:1.0,M:171.0,S:0.03273},
+    {age:216,L:1.0,M:173.0,S:0.03195},{age:228,L:1.0,M:174.3,S:0.03125},
+    {age:240,L:1.0,M:175.2,S:0.03068},
+  ],
+  female: [
+    {age:24,L:1.0,M:86.0,S:0.03806},{age:36,L:1.0,M:95.1,S:0.03711},
+    {age:48,L:1.0,M:101.6,S:0.03663},{age:60,L:1.0,M:107.9,S:0.03595},
+    {age:72,L:1.0,M:114.1,S:0.03530},{age:84,L:1.0,M:119.9,S:0.03479},
+    {age:96,L:1.0,M:125.4,S:0.03423},{age:108,L:1.0,M:130.7,S:0.03376},
+    {age:120,L:1.0,M:135.9,S:0.03329},{age:132,L:1.0,M:141.2,S:0.03292},
+    {age:144,L:1.0,M:146.5,S:0.03264},{age:156,L:1.0,M:151.5,S:0.03241},
+    {age:168,L:1.0,M:155.5,S:0.03219},{age:180,L:1.0,M:158.3,S:0.03216},
+    {age:192,L:1.0,M:160.0,S:0.03219},{age:204,L:1.0,M:161.2,S:0.03221},
+    {age:216,L:1.0,M:161.8,S:0.03225},{age:228,L:1.0,M:162.2,S:0.03230},
+    {age:240,L:1.0,M:162.5,S:0.03237},
+  ],
+};
+
+// CDC BMI-for-Age (kg/m²), 24–240 months
+const CDC_BMIFA = {
+  male: [
+    {age:24,L:-1.9244,M:16.1994,S:0.09232},{age:36,L:-1.9244,M:15.6845,S:0.09145},
+    {age:48,L:-1.9244,M:15.3383,S:0.09094},{age:60,L:-1.9244,M:15.1472,S:0.09093},
+    {age:72,L:-1.9244,M:15.1001,S:0.09171},{age:84,L:-1.9244,M:15.1950,S:0.09323},
+    {age:96,L:-1.9244,M:15.3748,S:0.09487},{age:108,L:-1.9244,M:15.6228,S:0.09665},
+    {age:120,L:-1.9244,M:15.9369,S:0.09855},{age:132,L:-1.9244,M:16.3022,S:0.10028},
+    {age:144,L:-1.9244,M:16.7169,S:0.10199},{age:156,L:-1.9244,M:17.1730,S:0.10363},
+    {age:168,L:-1.9244,M:17.6531,S:0.10508},{age:180,L:-1.9244,M:18.1429,S:0.10618},
+    {age:192,L:-1.9244,M:18.6228,S:0.10685},{age:204,L:-1.9244,M:19.0746,S:0.10716},
+    {age:216,L:-1.9244,M:19.4878,S:0.10719},{age:228,L:-1.9244,M:19.8499,S:0.10705},
+    {age:240,L:-1.9244,M:20.1579,S:0.10679},
+  ],
+  female: [
+    {age:24,L:-1.3000,M:15.9691,S:0.09494},{age:36,L:-1.3000,M:15.4758,S:0.09413},
+    {age:48,L:-1.3000,M:15.1706,S:0.09384},{age:60,L:-1.3000,M:15.0170,S:0.09442},
+    {age:72,L:-1.3000,M:15.0034,S:0.09517},{age:84,L:-1.3000,M:15.0888,S:0.09636},
+    {age:96,L:-1.3000,M:15.2543,S:0.09776},{age:108,L:-1.3000,M:15.5010,S:0.09913},
+    {age:120,L:-1.3000,M:15.7847,S:0.10046},{age:132,L:-1.3000,M:16.1007,S:0.10169},
+    {age:144,L:-1.3000,M:16.4537,S:0.10282},{age:156,L:-1.3000,M:16.8433,S:0.10387},
+    {age:168,L:-1.3000,M:17.2557,S:0.10471},{age:180,L:-1.3000,M:17.6745,S:0.10533},
+    {age:192,L:-1.3000,M:18.0790,S:0.10567},{age:204,L:-1.3000,M:18.4604,S:0.10576},
+    {age:216,L:-1.3000,M:18.8116,S:0.10564},{age:228,L:-1.3000,M:19.1250,S:0.10533},
+    {age:240,L:-1.3000,M:19.3980,S:0.10487},
+  ],
+};
+
+// ─────────────────────────────────────────────────────────────
+// SPECIAL CONDITION CURVES (stubs — replace with validated data)
+// ─────────────────────────────────────────────────────────────
+// Down Syndrome: Cronk 1988 / CDC-DS adapted
+// Turner Syndrome: Lyon 1985 (height)
+// Russell-Silver: not standardized — placeholder only
+// Nellhaus HC: Nellhaus 1968 (0–18 years)
+// Rolandelli HC: Rolandelli 1995 / Rollins 2010
+
+// Structure matches WHO_LFA for interpolation (age in months)
+const DS_LFA = {  // Down Syndrome length/stature for age
+  male: [
+    {age:0,L:1,M:47.5,S:0.042},{age:3,L:1,M:55.0,S:0.042},
+    {age:6,L:1,M:61.0,S:0.042},{age:12,L:1,M:68.5,S:0.042},
+    {age:18,L:1,M:74.5,S:0.042},{age:24,L:1,M:79.5,S:0.042},
+    // STUB — replace with Cronk 1988 table data
+  ],
+  female: [
+    {age:0,L:1,M:46.8,S:0.042},{age:3,L:1,M:53.5,S:0.042},
+    {age:6,L:1,M:59.5,S:0.042},{age:12,L:1,M:66.5,S:0.042},
+    {age:18,L:1,M:72.0,S:0.042},{age:24,L:1,M:77.0,S:0.042},
+  ],
+};
+
+const TURNER_SFA = { // Turner Syndrome stature (females only)
+  female: [
+    {age:24,L:1,M:81.5,S:0.040},{age:36,L:1,M:89.0,S:0.040},
+    {age:48,L:1,M:96.0,S:0.040},{age:60,L:1,M:101.5,S:0.040},
+    {age:72,L:1,M:107.0,S:0.040},{age:84,L:1,M:112.0,S:0.040},
+    {age:96,L:1,M:116.5,S:0.040},{age:108,L:1,M:120.5,S:0.040},
+    {age:120,L:1,M:124.5,S:0.040},{age:132,L:1,M:127.5,S:0.040},
+    {age:144,L:1,M:130.0,S:0.040},{age:156,L:1,M:132.0,S:0.040},
+    {age:168,L:1,M:142.5,S:0.040}, // with treatment
+    // STUB — replace with Lyon 1985 / Lyon 1991 validated table
+  ],
+};
+
+// Nellhaus HC (both sexes combined; age in months, 0–18yr)
+const NELLHAUS_HC = {
+  both: [
+    {age:0,L:1,M:34.0,S:0.042},{age:1,L:1,M:37.2,S:0.038},
+    {age:2,L:1,M:39.1,S:0.036},{age:3,L:1,M:40.5,S:0.034},
+    {age:6,L:1,M:43.3,S:0.031},{age:9,L:1,M:45.0,S:0.030},
+    {age:12,L:1,M:46.5,S:0.029},{age:18,L:1,M:48.3,S:0.028},
+    {age:24,L:1,M:49.5,S:0.028},{age:36,L:1,M:50.5,S:0.027},
+    {age:48,L:1,M:51.0,S:0.027},{age:60,L:1,M:51.5,S:0.027},
+    {age:72,L:1,M:52.0,S:0.027},
+    // STUB — replace with Nellhaus 1968 full table
+  ],
+};
+
+// Rollins HC (sex-specific; age in months)
+const ROLLINS_HC = {
+  male: WHO_HCFA.male,   // STUB — replace with Rollins 2010 data
+  female: WHO_HCFA.female,
+};
+
+// ─────────────────────────────────────────────────────────────
+// PERCENTILE CURVE COMPUTATION FOR SVG
+// ─────────────────────────────────────────────────────────────
+const PCTS = [3, 10, 25, 50, 75, 90, 97];
+
+function buildCurves(table, pcts, isWFL=false) {
+  // Returns {p3:[...], p10:[...], ...} where each value is {age, val}
+  return pcts.reduce((acc, p) => {
+    acc[`p${p}`] = table.map(row => ({
+      age: row.age,
+      val: lmsPercentileVal(p, row.L, row.M, row.S)
+    }));
+    return acc;
+  }, {});
+}
+
+// ─────────────────────────────────────────────────────────────
+// SVG CHART RENDERER
+// ─────────────────────────────────────────────────────────────
+// Chart dimensions — 8:11 portrait ratio matching published AAP/WHO/CDC growth charts.
+// Growth velocity is encoded in curve slope; landscape distortion changes clinical meaning.
+// viewBox drives coordinate math; actual rendered size is controlled by the flex container.
+const CHART_W = 400, CHART_H = 550;  // 8:11 portrait ratio
+const MARGIN = {top: 22, right: 28, bottom: 38, left: 44};
+const PLOT_W = CHART_W - MARGIN.left - MARGIN.right;
+const PLOT_H = CHART_H - MARGIN.top - MARGIN.bottom;
+
+function scaleX(val, xMin, xMax) {
+  return MARGIN.left + (val - xMin) / (xMax - xMin) * PLOT_W;
+}
+function scaleY(val, yMin, yMax) {
+  return MARGIN.top + PLOT_H - (val - yMin) / (yMax - yMin) * PLOT_H;
+}
+
+function curvePath(points, xMin, xMax, yMin, yMax) {
+  if (!points || points.length < 2) return "";
+  const pts = points.filter(p => p.val !== null && p.val !== undefined
+    && p.age >= xMin && p.age <= xMax);
+  if (pts.length < 2) return "";
+  return pts.map((p, i) =>
+    `${i === 0 ? "M" : "L"} ${scaleX(p.age, xMin, xMax).toFixed(1)},${scaleY(p.val, yMin, yMax).toFixed(1)}`
+  ).join(" ");
+}
+
+function GrowthChart({ title, xLabel, yLabel, xMin, xMax, yMin, yMax,
+                       xTicks, yTicks, curves, patientX, patientY,
+                       xUnit, highlightPct }) {
+  const svgRef = useRef(null);
+  if (!curves) return null;
+
+  const pctStyles = {
+    3:  {stroke:"#5b9ad4",sw:1.2,dash:"4,3"},
+    10: {stroke:"#5b9ad4",sw:1.2,dash:"4,3"},
+    25: {stroke:"#5b9ad4",sw:1.4,dash:"none"},
+    50: {stroke:"#c0392b",sw:2.0,dash:"none"},
+    75: {stroke:"#5b9ad4",sw:1.4,dash:"none"},
+    90: {stroke:"#5b9ad4",sw:1.2,dash:"4,3"},
+    97: {stroke:"#5b9ad4",sw:1.2,dash:"4,3"},
+  };
+
+  const px = patientX !== null && patientX !== undefined ?
+    scaleX(patientX, xMin, xMax) : null;
+  const py = patientY !== null && patientY !== undefined ?
+    scaleY(patientY, yMin, yMax) : null;
+  const inBounds = px !== null && py !== null
+    && px >= MARGIN.left && px <= MARGIN.left + PLOT_W
+    && py >= MARGIN.top && py <= MARGIN.top + PLOT_H;
+
+  return (
+    <svg ref={svgRef} width="100%" viewBox={`0 0 ${CHART_W} ${CHART_H}`}
+      style={{display:"block",fontFamily:"'DM Mono',monospace"}}>
+      {/* Background */}
+      <rect x={MARGIN.left} y={MARGIN.top} width={PLOT_W} height={PLOT_H}
+        fill="#f8fbff" stroke={C.border} strokeWidth={1}/>
+
+      {/* Grid lines */}
+      {yTicks.map(y => (
+        <g key={y}>
+          <line x1={MARGIN.left} x2={MARGIN.left+PLOT_W}
+            y1={scaleY(y,yMin,yMax)} y2={scaleY(y,yMin,yMax)}
+            stroke="#dce8f3" strokeWidth={0.7}/>
+          <text x={MARGIN.left-4} y={scaleY(y,yMin,yMax)+4}
+            textAnchor="end" fontSize={9} fill={C.muted}>{y}</text>
+        </g>
+      ))}
+      {xTicks.map(x => (
+        <g key={x}>
+          <line x1={scaleX(x,xMin,xMax)} x2={scaleX(x,xMin,xMax)}
+            y1={MARGIN.top} y2={MARGIN.top+PLOT_H}
+            stroke="#dce8f3" strokeWidth={0.7}/>
+          <text x={scaleX(x,xMin,xMax)} y={MARGIN.top+PLOT_H+13}
+            textAnchor="middle" fontSize={9} fill={C.muted}>{x}</text>
+        </g>
+      ))}
+
+      {/* Percentile curves */}
+      {PCTS.map(p => {
+        const pts = curves[`p${p}`];
+        if (!pts) return null;
+        const d = curvePath(pts, xMin, xMax, yMin, yMax);
+        if (!d) return null;
+        const st = pctStyles[p];
+        return (
+          <g key={p}>
+            <path d={d} fill="none" stroke={st.stroke} strokeWidth={st.sw}
+              strokeDasharray={st.dash === "none" ? undefined : st.dash}
+              opacity={0.85}/>
+            {/* Label at right end */}
+            {(() => {
+              const last = pts.filter(pt => pt.age <= xMax).slice(-1)[0];
+              if (!last) return null;
+              const lx = scaleX(Math.min(last.age, xMax), xMin, xMax);
+              const ly = scaleY(last.val, yMin, yMax);
+              if (ly < MARGIN.top || ly > MARGIN.top + PLOT_H) return null;
+              return <text x={lx+3} y={ly+3} fontSize={8} fill={st.stroke}
+                fontWeight={p===50?"700":"400"}>{p}</text>;
+            })()}
+          </g>
+        );
+      })}
+
+      {/* Patient point */}
+      {inBounds && (
+        <g>
+          <circle cx={px} cy={py} r={6} fill={C.accent} stroke="white"
+            strokeWidth={2} opacity={0.95}/>
+          <circle cx={px} cy={py} r={11} fill="none" stroke={C.accent}
+            strokeWidth={1.2} opacity={0.4}/>
+        </g>
+      )}
+
+      {/* Axes */}
+      <line x1={MARGIN.left} x2={MARGIN.left} y1={MARGIN.top}
+        y2={MARGIN.top+PLOT_H} stroke={C.navy} strokeWidth={1.5}/>
+      <line x1={MARGIN.left} x2={MARGIN.left+PLOT_W} y1={MARGIN.top+PLOT_H}
+        y2={MARGIN.top+PLOT_H} stroke={C.navy} strokeWidth={1.5}/>
+
+      {/* Axis labels */}
+      <text x={MARGIN.left + PLOT_W/2} y={CHART_H-2}
+        textAnchor="middle" fontSize={10} fill={C.navy} fontWeight="600">
+        {xLabel}
+      </text>
+      <text x={10} y={MARGIN.top + PLOT_H/2}
+        textAnchor="middle" fontSize={10} fill={C.navy} fontWeight="600"
+        transform={`rotate(-90,10,${MARGIN.top+PLOT_H/2})`}>
+        {yLabel}
+      </text>
+
+      {/* Title */}
+      <text x={MARGIN.left + PLOT_W/2} y={12}
+        textAnchor="middle" fontSize={11} fill={C.navy} fontWeight="700">
+        {title}
+      </text>
+    </svg>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// CHART CONFIG FACTORY
+// Returns { table, xMin, xMax, xTicks, yRange, yTicks, xLabel, yLabel, title }
+// ─────────────────────────────────────────────────────────────
+function chartConfig(zone, metric, sex, ages, htCm, specialCurve, hcVariant) {
+  const s = sex === "male" ? "male" : "female";
+
+  if (zone === "fenton") {
+    const gaMin = 23, gaMax = 50;
+    const base = FENTON_LMS[s];
+    let table, yLabel, yMin, yMax, yStep;
+    if (metric === "weight") {
+      table = base.weight;
+      yLabel = "Weight (kg)"; yMin = 0.3; yMax = 8.0; yStep = 0.5;
+    } else if (metric === "length") {
+      table = base.length;
+      yLabel = "Length (cm)"; yMin = 22; yMax = 70; yStep = 5;
+    } else {
+      table = base.hc;
+      if (hcVariant === "nellhaus") table = NELLHAUS_HC.both;
+      yLabel = "HC (cm)"; yMin = 18; yMax = 42; yStep = 2;
+    }
+    const xTicks = Array.from({length: gaMax-gaMin+1}, (_,i)=>i+gaMin);
+    const yTicks = [];
+    for (let y = yMin; y <= yMax; y += yStep) yTicks.push(Math.round(y*10)/10);
+    return {
+      table, xMin: gaMin, xMax: gaMax, xTicks, yMin, yMax, yTicks,
+      xLabel: "Gestational Age (weeks)", yLabel,
+      title: `Fenton 2025 — ${metric.charAt(0).toUpperCase()+metric.slice(1)} (${sex})`,
+      patientX: ages ? ages.pmaWeeks + ages.pmaRemDays/7 : null,
+    };
+  }
+
+  if (zone === "who") {
+    // age in months (corrected)
+    const corrMonths = ages ? ages.corrDays / 30.4375 : null;
+    let table, yLabel, yMin, yMax, yStep, patientX;
+    patientX = corrMonths;
+    if (metric === "weight") {
+      table = WHO_WFA[s];
+      yLabel = "Weight (kg)"; yMin = 2; yMax = 16; yStep = 1;
+    } else if (metric === "length") {
+      table = WHO_LFA[s];
+      if (specialCurve === "down") table = DS_LFA[s];
+      yLabel = "Length (cm)"; yMin = 44; yMax = 92; yStep = 4;
+    } else if (metric === "hc") {
+      if (hcVariant === "nellhaus") table = NELLHAUS_HC.both;
+      else if (hcVariant === "rollins") table = ROLLINS_HC[s];
+      else table = WHO_HCFA[s];
+      yLabel = "HC (cm)"; yMin = 32; yMax = 52; yStep = 2;
+    } else { // wfl
+      const wflTable = s === "male" ? WHO_WFL_MALE_NODES : WHO_WFL_FEMALE_NODES;
+      table = wflTable;
+      yLabel = "Weight (kg)"; yMin = 1; yMax = 20; yStep = 1;
+      patientX = htCm; // x-axis is length
+    }
+    const xMin = metric === "wfl" ? 45 : 0;
+    const xMax = metric === "wfl" ? 110 : 24;
+    const xStep = metric === "wfl" ? 5 : 2;
+    const xTicks = [];
+    for (let x = xMin; x <= xMax; x += xStep) xTicks.push(x);
+    const yTicks = [];
+    for (let y = yMin; y <= yMax; y += yStep) yTicks.push(Math.round(y*10)/10);
+    return {
+      table, xMin, xMax, xTicks, yMin, yMax, yTicks,
+      xLabel: metric === "wfl" ? "Length (cm)" : "Corrected Age (months)",
+      yLabel,
+      title: `WHO 2006 — ${metric==="wfl"?"Weight-for-Length":metric.charAt(0).toUpperCase()+metric.slice(1)} (${sex})`,
+      patientX,
+    };
+  }
+
+  // CDC
+  const chronMonths = ages ? ages.chronDays / 30.4375 : null;
+  let table, yLabel, yMin, yMax, yStep;
+  if (metric === "weight") {
+    table = CDC_WFA[s];
+    yLabel = "Weight (kg)"; yMin = 10; yMax = 110; yStep = 10;
+  } else if (metric === "length") {
+    table = CDC_SFA[s];
+    if (specialCurve === "turner" && s === "female") table = TURNER_SFA.female;
+    yLabel = "Stature (cm)"; yMin = 75; yMax = 200; yStep = 10;
+  } else {
+    table = CDC_BMIFA[s];
+    yLabel = "BMI (kg/m²)"; yMin = 12; yMax = 42; yStep = 2;
+  }
+  const xMin = 24, xMax = 240;
+  const xTicks = [24,36,48,60,72,84,96,108,120,132,144,156,168,180,192,204,216,228,240];
+  const yTicks = [];
+  for (let y = yMin; y <= yMax; y += yStep) yTicks.push(y);
+  return {
+    table, xMin, xMax, xTicks, yMin, yMax, yTicks,
+    xLabel: "Age (months)",
+    yLabel,
+    title: `CDC 2000 — ${metric.charAt(0).toUpperCase()+metric.slice(1)} (${sex})`,
+    patientX: chronMonths,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// RESULT CALCULATOR
+// Returns { z, pct, label, color } for a given metric/zone
+// ─────────────────────────────────────────────────────────────
+function calcResult(value, zone, metric, sex, ages, htCm) {
+  if (!value || !ages) return null;
+  const s = sex === "male" ? "male" : "female";
+  let table, ageKey, zFn;
+
+  zFn = whoZ; // WHO z method (with extension) for all
+
+  if (zone === "fenton") {
+    const gaW = ages.pmaWeeks + ages.pmaRemDays / 7;
+    if (metric === "weight") table = FENTON_LMS[s].weight;
+    else if (metric === "length") table = FENTON_LMS[s].length;
+    else table = FENTON_LMS[s].hc;
+    const lms = interpolateLMS(table, gaW);
+    if (!lms) return null;
+    const z = zFn(value, lms.L, lms.M, lms.S);
+    const pct = zToPercentile(z);
+    return { z, pct, ...classify(pct, zone) };
+  }
+
+  if (zone === "who") {
+    const corrM = ages.corrDays / 30.4375;
+    if (metric === "weight") table = WHO_WFA[s];
+    else if (metric === "length") table = WHO_LFA[s];
+    else if (metric === "hc") table = WHO_HCFA[s];
+    else { // wfl — x is length
+      const wflT = s === "male" ? WHO_WFL_MALE_NODES : WHO_WFL_FEMALE_NODES;
+      const lms = interpolateLMS(wflT, htCm);
+      if (!lms) return null;
+      const z = zFn(value, lms.L, lms.M, lms.S);
+      return { z, pct: zToPercentile(z), ...classify(zToPercentile(z), zone) };
+    }
+    const lms = interpolateLMS(table, corrM);
+    if (!lms) return null;
+    const z = zFn(value, lms.L, lms.M, lms.S);
+    return { z, pct: zToPercentile(z), ...classify(zToPercentile(z), zone) };
+  }
+
+  // CDC
+  const chronM = ages.chronDays / 30.4375;
+  if (metric === "weight") table = CDC_WFA[s];
+  else if (metric === "length") table = CDC_SFA[s];
+  else table = CDC_BMIFA[s];
+  const lms = interpolateLMS(table, chronM);
+  if (!lms) return null;
+  const z = zFn(value, lms.L, lms.M, lms.S);
+  return { z, pct: zToPercentile(z), ...classify(zToPercentile(z), "cdc") };
+}
+
+function classify(pct, zone) {
+  if (pct === null) return { label: "—", color: C.muted };
+  if (pct < 2.3)  return { label: "< 3rd %ile", color: C.red };
+  if (pct < 10)   return { label: "3rd–10th %ile", color: C.amber };
+  if (pct < 25)   return { label: "10th–25th %ile", color: C.text };
+  if (pct < 75)   return { label: "25th–75th %ile", color: C.green };
+  if (pct < 90)   return { label: "75th–90th %ile", color: C.text };
+  if (pct < 97.7) return { label: "90th–97th %ile", color: C.amber };
+  return { label: "> 97th %ile", color: C.red };
+}
+
+// ─────────────────────────────────────────────────────────────
+// FORMAT HELPERS
+// ─────────────────────────────────────────────────────────────
+function fmtZ(z) {
+  if (z === null || z === undefined || isNaN(z)) return "—";
+  return (z >= 0 ? "+" : "") + z.toFixed(2);
+}
+function fmtPct(p) {
+  if (p === null || p === undefined || isNaN(p)) return "—";
+  if (p < 0.1) return "< 0.1";
+  if (p > 99.9) return "> 99.9";
+  return p.toFixed(1);
+}
+function fmtAge(days) {
+  // Chronological age display conventions:
+  //   < 90 days  → days (e.g. "42d")
+  //   90–731.5d  → completed months (e.g. "4 mo")
+  //   > 731.5d   → completed years (e.g. "2 yr")
+  if (days === null || days === undefined) return "—";
+  const d = Math.round(days);
+  if (d < 0) return "—";
+  if (d < 90) return `${d}d`;
+  if (d < 732) return `${Math.floor(d / 30.4375)} mo`;
+  return `${Math.floor(d / 365.25)} yr`;
+}
+function fmtWeeks(weeks, days) {
+  return `${weeks}w ${days}d`;
+}
+function today() {
+  return new Date().toISOString().slice(0,10);
+}
+
+// ─────────────────────────────────────────────────────────────
+// MAIN COMPONENT
+// ─────────────────────────────────────────────────────────────
+function GrowthCalc() {
+  const [sex, setSex] = useState(null);
+  const [dob, setDob] = useState("");
+  const [measureDate, setMeasureDate] = useState(today());
+
+  // Date entry — MM/DD/YYYY spinners that assemble into ISO strings
+  // Initialise Visit Date fields from today()
+  const _todayParts = today().split("-");
+  const [dobM, setDobM] = useState("");
+  const [dobD, setDobD] = useState("");
+  const [dobY, setDobY] = useState("");
+  const [visM, setVisM] = useState(_todayParts[1] || "");
+  const [visD, setVisD] = useState(_todayParts[2] || "");
+  const [visY, setVisY] = useState(_todayParts[0] || "");
+
+  // Assemble ISO date from parts; empty string if incomplete
+  const assembleDate = (m, d, y) => {
+    const mm = String(m).padStart(2,"0");
+    const dd = String(d).padStart(2,"0");
+    const yyyy = String(y);
+    if (!m || !d || yyyy.length !== 4) return "";
+    return yyyy + "-" + mm + "-" + dd;
+  };
+
+  // Keep dob / measureDate in sync with spinner state
+  const dobVal = assembleDate(dobM, dobD, dobY);
+  const measVal = assembleDate(visM, visD, visY);
+  // Override state-based strings with spinner-derived values
+  const dobEff = dobVal || dob;
+  const measEff = measVal || measureDate;
+  const [egaWeeks, setEgaWeeks] = useState("40");
+  const [egaDays_, setEgaDays_] = useState("0");
+  const [wtKg, setWtKg] = useState("");
+  const [htCm, setHtCm] = useState("");
+  const [hcCm, setHcCm] = useState("");
+  const [specialCurve, setSpecialCurve] = useState("none");
+  const [hcVariant, setHcVariant] = useState("standard"); // standard | nellhaus | rollins
+  const [showCurveOptions, setShowCurveOptions] = useState(false);
+  const [activeMetric, setActiveMetric] = useState("weight");
+  const [obesityMode, setObesityMode] = useState("extended"); // extended | severe
+
+  const egaDays = (parseInt(egaWeeks)||40)*7 + (parseInt(egaDays_)||0);
+  const ages = calcAges(dobEff, measEff, egaDays);
+  const zone = chartZone(ages);
+  const bmi = calcBMI(parseFloat(wtKg), parseFloat(htCm));
+
+  // Which metric tabs are available
+  const metricTabs = [
+    {id:"weight", label:"Weight"},
+    {id:"length", label:"Ht/Len"},
+    {id:"hc", label:"HC"},
+    ...(zone === "who" ? [{id:"wfl", label:"Wt/Len"}] : []),
+    ...(zone === "cdc" ? [{id:"bmi", label:"BMI"}] : []),
+  ];
+
+  // Ensure active metric stays valid
+  useEffect(() => {
+    const ids = metricTabs.map(t => t.id);
+    if (!ids.includes(activeMetric)) setActiveMetric("weight");
+  }, [zone]);
+
+  // Measurement values keyed by metric
+  const measValues = {
+    weight: parseFloat(wtKg) || null,
+    length: parseFloat(htCm) || null,
+    hc: parseFloat(hcCm) || null,
+    wfl: parseFloat(wtKg) || null,
+    bmi,
+  };
+
+  const curMetricValue = measValues[activeMetric];
+
+  // Build result
+  const result = (zone && sex && curMetricValue && ages) ?
+    calcResult(
+      curMetricValue, zone,
+      activeMetric === "bmi" ? "bmi" : activeMetric,
+      sex, ages, parseFloat(htCm)
+    ) : null;
+
+  // Build chart config
+  const cfg = (zone && sex && ages) ?
+    chartConfig(
+      zone,
+      activeMetric === "bmi" ? "bmi" : activeMetric,
+      sex, ages, parseFloat(htCm), specialCurve, hcVariant
+    ) : null;
+
+  const curves = cfg ? buildCurves(cfg.table, PCTS) : null;
+
+  // Styles
+  const inputStyle = {
+    width:"100%", padding:"8px 10px", borderRadius:6,
+    border:`1.5px solid ${C.border}`, background:"#fff",
+    color:C.navy, fontSize:14, fontFamily:"'DM Mono',monospace",
+    fontWeight:600, outline:"none", boxSizing:"border-box",
+  };
+  const lblStyle = {
+    color:C.navy, fontSize:11, fontWeight:700,
+    fontFamily:"'IBM Plex Sans',sans-serif",
+    textTransform:"uppercase", letterSpacing:"0.05em",
+    marginBottom:4, display:"block",
+  };
+  const badgeStyle = (color) => ({
+    display:"inline-block", padding:"2px 8px", borderRadius:20,
+    background: color + "18", color, fontSize:12, fontWeight:700,
+    fontFamily:"'DM Mono',monospace",
+  });
+  const tabStyle = (active) => ({
+    padding:"6px 14px", borderRadius:20, fontSize:12, fontWeight:700,
+    fontFamily:"'DM Mono',monospace", cursor:"pointer", border:"none",
+    background: active ? C.accent : C.card,
+    color: active ? "#fff" : C.muted,
+    transition:"all 0.15s",
+  });
+  const sexBtnStyle = (v) => ({
+    flex:1, padding:"9px 0", borderRadius:6, fontSize:13, fontWeight:700,
+    fontFamily:"'IBM Plex Sans',sans-serif", cursor:"pointer", border:"none",
+    background: sex === v ? C.accent : C.card,
+    color: sex === v ? "#fff" : C.muted,
+    transition:"all 0.15s",
+  });
+
+  const zoneLabel = zone === "fenton" ? "Fenton 2025" :
+                    zone === "who" ? "WHO 2006" :
+                    zone === "cdc" ? "CDC 2000" : "—";
+  const zoneColor = zone === "fenton" ? C.teal :
+                    zone === "who"    ? C.green :
+                    zone === "cdc"    ? C.accent : C.muted;
+
+  return (
+    <div style={{fontFamily:"'IBM Plex Sans',sans-serif", color:C.text}}>
+
+      {/* ── SPECIAL CONDITION SELECTOR — collapsible, gold divider ── */}
+      {/* Gold divider with chevron — same pattern as Fluids calculator */}
+      <div onClick={()=>setShowCurveOptions(o=>!o)}
+        style={{position:"relative",marginBottom:showCurveOptions?0:12,
+          marginTop:4,cursor:"pointer",userSelect:"none"}}>
+        <div style={{height:2,background:"#d4a444",borderRadius:1}}/>
+        <div style={{position:"absolute",top:"50%",left:"50%",
+          transform:"translate(-50%,-50%)",background:C.bg,padding:"0 8px",lineHeight:1}}>
+          <span style={{color:"#d4a444",fontSize:14,fontWeight:700}}>
+            {showCurveOptions ? "∧" : "∨"}
+          </span>
+        </div>
+      </div>
+
+      {showCurveOptions && (
+        <div style={{marginBottom:12,padding:"10px 12px",borderRadius:"0 0 10px 10px",
+          background:C.surface,border:`1px solid ${C.border}`,borderTop:"none"}}>
+          <div style={{...lblStyle,marginBottom:6}}>Special Population Curve</div>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+            {[
+              {id:"none",label:"Standard"},
+              {id:"down",label:"Down Syndrome"},
+              {id:"turner",label:"Turner Syndrome"},
+              {id:"silver",label:"Russell-Silver ⚠"},
+            ].map(opt => (
+              <button key={opt.id} onClick={()=>setSpecialCurve(opt.id)}
+                style={{...tabStyle(specialCurve===opt.id),padding:"5px 10px",fontSize:11}}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {specialCurve !== "none" && (
+            <div style={{marginTop:6,fontSize:10,color:C.amber,
+              fontFamily:"'DM Mono',monospace"}}>
+              ⚠ Condition-specific curves are stubs — insert validated LMS data before clinical use
+            </div>
+          )}
+
+          {/* HC variant */}
+          <div style={{marginTop:8}}>
+            <div style={{...lblStyle,marginBottom:4,fontSize:10}}>Head Circumference Chart</div>
+            <div style={{display:"flex",gap:5}}>
+              {[{id:"standard",label:"WHO/Fenton"},{id:"nellhaus",label:"Nellhaus"},{id:"rollins",label:"Rollins"}].map(opt=>(
+                <button key={opt.id} onClick={()=>setHcVariant(opt.id)}
+                  style={{...tabStyle(hcVariant===opt.id),padding:"4px 9px",fontSize:10}}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DATA ENTRY ── */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+
+        {/* Sex + EGA — shared row, sex left ~half, EGA right ~half */}
+        <div style={{gridColumn:"1/-1",display:"flex",gap:12,alignItems:"flex-end"}}>
+
+          {/* Sex — segmented M/F matching U25 eGFR pattern */}
+          <div style={{flex:1}}>
+            <div style={{color:C.navy,fontSize:11,fontWeight:700,
+              fontFamily:"'IBM Plex Sans',sans-serif",textTransform:"uppercase",
+              letterSpacing:"0.05em",marginBottom:4}}>Sex</div>
+            <div style={{display:"flex",borderRadius:6,overflow:"hidden",
+              border:`1.5px solid ${C.border}`}}>
+              {[["male","♂ M"],["female","♀ F"]].map(([val,lbl],i)=>(
+                <button key={val} onClick={()=>setSex(val)}
+                  style={{flex:1,padding:"8px 0",fontSize:13,fontWeight:700,
+                    fontFamily:"'IBM Plex Sans',sans-serif",border:"none",
+                    borderRight:i===0?`1px solid ${C.border}`:"none",
+                    cursor:"pointer",
+                    background:sex===val?C.accent:C.bg,
+                    color:sex===val?"#fff":C.muted,
+                    transition:"background 0.15s"}}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* EGA — weeks + days, compact; qualifier in label, no sub-hints */}
+          <div style={{flex:1}}>
+            <div style={{color:C.navy,fontSize:11,fontWeight:700,
+              fontFamily:"'IBM Plex Sans',sans-serif",textTransform:"uppercase",
+              letterSpacing:"0.05em",marginBottom:4}}>
+              EGA at Birth{" "}
+              <span style={{color:C.amber,fontWeight:600,letterSpacing:"0.03em"}}>
+                Wks · Days
+              </span>
+            </div>
+            <div style={{display:"flex",gap:4}}>
+              <div style={{flex:1}}>
+                <input type="number" value={egaWeeks} min={22} max={44}
+                  onChange={e=>setEgaWeeks(e.target.value)}
+                  style={{...inputStyle,padding:"8px 6px",textAlign:"center"}}
+                  placeholder="40"/>
+              </div>
+              <div style={{flex:1}}>
+                <input type="number" value={egaDays_} min={0} max={6}
+                  onChange={e=>setEgaDays_(e.target.value)}
+                  style={{...inputStyle,padding:"8px 6px",textAlign:"center"}}
+                  placeholder="0"/>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* DOB — MM / DD / YYYY spinners */}
+        <div>
+          <label style={lblStyle}>DOB</label>
+          <div style={{display:"grid",gridTemplateColumns:"2fr 2fr 3fr",gap:3}}>
+            <div>
+              <input type="number" inputMode="numeric" placeholder="MM"
+                value={dobM} min={1} max={12}
+                onChange={e=>setDobM(e.target.value)}
+                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center"}}/>
+            </div>
+            <div>
+              <input type="number" inputMode="numeric" placeholder="DD"
+                value={dobD} min={1} max={31}
+                onChange={e=>setDobD(e.target.value)}
+                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center"}}/>
+            </div>
+            <div>
+              <input type="number" inputMode="numeric" placeholder="YYYY"
+                value={dobY} min={2000} max={2030}
+                onChange={e=>setDobY(e.target.value)}
+                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center"}}/>
+            </div>
+          </div>
+        </div>
+
+        {/* Visit Date — MM / DD / YYYY spinners */}
+        <div>
+          <label style={lblStyle}>Visit Date</label>
+          <div style={{display:"grid",gridTemplateColumns:"2fr 2fr 3fr",gap:3}}>
+            <div>
+              <input type="number" inputMode="numeric" placeholder="MM"
+                value={visM} min={1} max={12}
+                onChange={e=>setVisM(e.target.value)}
+                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center"}}/>
+            </div>
+            <div>
+              <input type="number" inputMode="numeric" placeholder="DD"
+                value={visD} min={1} max={31}
+                onChange={e=>setVisD(e.target.value)}
+                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center"}}/>
+            </div>
+            <div>
+              <input type="number" inputMode="numeric" placeholder="YYYY"
+                value={visY} min={2000} max={2030}
+                onChange={e=>setVisY(e.target.value)}
+                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center"}}/>
+            </div>
+          </div>
+        </div>
+
+        {/* Measurements — Weight, Ht/Len, HC all on one row via inner 3-col grid */}
+        <div style={{gridColumn:"1/-1",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+          <div>
+            <label style={lblStyle}>Weight <span style={{color:C.accent}}>(kg)</span></label>
+            <input type="number" inputMode="decimal" value={wtKg} min={0} step={0.01}
+              onChange={e=>setWtKg(e.target.value)} style={inputStyle} placeholder="—"/>
+          </div>
+          <div>
+            <label style={lblStyle}>Ht / Len <span style={{color:C.accent}}>(cm)</span></label>
+            <input type="number" inputMode="decimal" value={htCm} min={0} step={0.1}
+              onChange={e=>setHtCm(e.target.value)} style={inputStyle} placeholder="—"/>
+          </div>
+          <div>
+            <label style={lblStyle}>Head Circ/OFC <span style={{color:C.accent}}>(cm)</span></label>
+            <input type="number" inputMode="decimal" value={hcCm} min={0} step={0.1}
+              onChange={e=>setHcCm(e.target.value)} style={inputStyle} placeholder="—"/>
+          </div>
+        </div>
+      </div>
+
+      {/* ── CALCULATED FIELDS ── */}
+      {ages && (
+        <div style={{padding:"10px 12px",borderRadius:10,background:C.card,
+          border:`1px solid ${C.border}`,marginBottom:12}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>
+            {(() => {
+              const isPrem = parseInt(egaWeeks) < 37;
+              // PMA: only for premature infants, only while PMA ≤ 60 weeks
+              const showPMA = isPrem && ages.pmaWeeks <= 60;
+              // Corr Age: only for premature infants, only while corrected age ≤ 731.5 days
+              const showCorr = isPrem && ages.corrDays >= 0 && ages.corrDays <= 731.5;
+              const fields = [
+                showPMA
+                  ? {label:"PMA", value: fmtWeeks(ages.pmaWeeks, ages.pmaRemDays)}
+                  : null,
+                {label:"Chron Age", value: fmtAge(ages.chronDays)},
+                showCorr
+                  ? {label:"Corr Age", value: fmtAge(ages.corrDays)}
+                  : null,
+                {label:"BMI", value: bmi ? bmi.toFixed(1) : "—"},
+                {label:"Wt-for-Len", value: (wtKg && htCm) ? `${parseFloat(wtKg).toFixed(2)} kg` : "—"},
+              ].filter(Boolean);
+              return fields.map(f => (
+                <div key={f.label} style={{textAlign:"center"}}>
+                  <div style={{fontSize:9,color:C.muted,fontFamily:"'DM Mono',monospace",
+                    textTransform:"uppercase",letterSpacing:"0.05em"}}>{f.label}</div>
+                  <div style={{fontSize:13,fontWeight:700,color:f.color||C.navy,
+                    fontFamily:"'DM Mono',monospace",marginTop:1}}>{f.value}</div>
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* ── METRIC TABS ── */}
+      <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+        {metricTabs.map(t => (
+          <button key={t.id} onClick={()=>setActiveMetric(t.id)}
+            style={tabStyle(activeMetric===t.id)}>
+            {t.label}
+          </button>
+        ))}
+        {/* Obesity toggle — CDC only when BMI > 97th */}
+        {zone === "cdc" && activeMetric === "bmi" && result && result.pct > 97 && (
+          <div style={{marginLeft:"auto",display:"flex",gap:4}}>
+            {[{id:"extended",label:"Ext BMI"},{id:"severe",label:"% of 95th"}].map(opt=>(
+              <button key={opt.id} onClick={()=>setObesityMode(opt.id)}
+                style={{...tabStyle(obesityMode===opt.id),padding:"4px 8px",fontSize:10}}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── OBESITY EXTENDED INFO — only renders when clinically indicated ── */}
+      {result && zone === "cdc" && activeMetric === "bmi" && bmi && result.pct > 97 && (
+        <div style={{marginBottom:12,padding:"8px 10px",borderRadius:8,
+          background:"#fff2e8",border:"1px solid #f4a261",fontSize:11,
+          fontFamily:"'DM Mono',monospace",color:"#c0392b"}}>
+          {(() => {
+            const p95lms = interpolateLMS(CDC_BMIFA[sex==="male"?"male":"female"],
+              ages.chronDays/30.4375);
+            if (!p95lms) return null;
+            const p95val = lmsPercentileVal(95, p95lms.L, p95lms.M, p95lms.S);
+            const pctOf95 = (bmi / p95val * 100).toFixed(0);
+            const above120 = bmi >= p95val * 1.2;
+            const above140 = bmi >= p95val * 1.4;
+            return (
+              <>
+                <strong>Severe Obesity:</strong>{" "}
+                BMI = {bmi.toFixed(1)}&nbsp;kg/m² ·{" "}
+                {pctOf95}% of 95th %ile ({p95val.toFixed(1)}){" "}
+                {above140 ? "· ≥140% Class III" : above120 ? "· ≥120% Class II" : "· <120%"}
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* ── GROWTH CHART SVG + RESULT PANEL ── */}
+      {/* Portrait 8:11 ratio chart left (~63%), percentile/Z panel right (~37%).
+          The right column uses space that landscape cropping would have wasted,
+          and keeps the chart proportions true to the published reference curves. */}
+      {cfg && curves && sex ? (
+        <div style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:8}}>
+
+          {/* Chart — 63% width; SVG scales inside via width:"100%" */}
+          <div style={{flex:"0 0 63%",borderRadius:10,overflow:"hidden",
+            border:`1.5px solid ${C.border}`,background:"#fff"}}>
+            <GrowthChart
+              title={cfg.title}
+              xLabel={cfg.xLabel}
+              yLabel={cfg.yLabel}
+              xMin={cfg.xMin} xMax={cfg.xMax}
+              yMin={cfg.yMin} yMax={cfg.yMax}
+              xTicks={cfg.xTicks} yTicks={cfg.yTicks}
+              curves={curves}
+              patientX={cfg.patientX}
+              patientY={curMetricValue}
+            />
+          </div>
+
+          {/* Result panel — 37% width; Chart first, then Percentile, then Z Score */}
+          <div style={{flex:"0 0 calc(37% - 8px)",display:"flex",
+            flexDirection:"column",gap:8}}>
+
+            {/* Chart identifier — top position */}
+            <div style={{borderRadius:10,border:`1.5px solid ${zoneColor}`,
+              background:C.card,padding:"8px 6px",textAlign:"center"}}>
+              <div style={{fontSize:9,fontWeight:700,color:C.muted,
+                fontFamily:"'DM Mono',monospace",textTransform:"uppercase",
+                letterSpacing:"0.06em",marginBottom:4}}>Chart</div>
+              <div style={{fontSize:9,fontWeight:700,color:zoneColor,
+                fontFamily:"'IBM Plex Sans',sans-serif",lineHeight:1.3}}>
+                {zoneLabel || "—"}
+              </div>
+            </div>
+
+            {/* Percentile — fmtPct for full precision */}
+            <div style={{borderRadius:10,border:`1.5px solid ${C.border}`,
+              background:C.card,padding:"10px 8px",textAlign:"center"}}>
+              <div style={{fontSize:9,fontWeight:700,color:C.muted,
+                fontFamily:"'DM Mono',monospace",textTransform:"uppercase",
+                letterSpacing:"0.06em",marginBottom:6}}>Percentile</div>
+              <div style={{fontSize:result ? 26 : 18,fontWeight:700,
+                color:result ? zoneColor : C.muted,
+                fontFamily:"'Sora',sans-serif",lineHeight:1}}>
+                {result ? fmtPct(result.pct) : "—"}
+              </div>
+            </div>
+
+            {/* Z Score */}
+            <div style={{borderRadius:10,border:`1.5px solid ${C.border}`,
+              background:C.card,padding:"10px 8px",textAlign:"center"}}>
+              <div style={{fontSize:9,fontWeight:700,color:C.muted,
+                fontFamily:"'DM Mono',monospace",textTransform:"uppercase",
+                letterSpacing:"0.06em",marginBottom:6}}>Z Score</div>
+              <div style={{fontSize:result ? 26 : 18,fontWeight:700,
+                color:result ? zoneColor : C.muted,
+                fontFamily:"'Sora',sans-serif",lineHeight:1}}>
+                {result ? fmtZ(result.z) : "—"}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      ) : null}
+
+      {/* ── CHART NOTES ── */}
+      <div style={{fontSize:10,color:C.muted,fontFamily:"'DM Mono',monospace",
+        lineHeight:1.6,padding:"6px 2px"}}>
+        {zone === "fenton" && "⚠ Fenton LMS values are placeholders — insert Fenton 2025 data files before clinical use"}
+        {zone === "who" && ages && ages.corrDays >= 0 && ages.corrDays < 730.5 &&
+          "WHO 2006 plotted at corrected age"}
+        {zone === "cdc" && "CDC 2000 plotted at chronological age (no correction)"}
+        {specialCurve !== "none" && " · Condition-specific curve stubs require validated LMS substitution"}
+        {hcVariant !== "standard" && ` · HC: ${hcVariant === "nellhaus" ? "Nellhaus 1968" : "Rollins 2010"} (stub — replace data)`}
+      </div>
+
+    </div>
+  );
+}
+
 // REGISTRY OF ALL CALCULATORS
 // ═══════════════════════════════════════════════════════════════════════════════
 const CALCULATORS = [
+  // Growth
+  { id:"growth",       category:"growth",      name:"Growth Charts",                desc:"Fenton 2025 · WHO 2006 · CDC 2000 auto-routed with prematurity correction", component: GrowthCalc },
   // Neonatal
   { id:"apgar",        category:"neonatal",    name:"APGAR Score",                  desc:"Neonatal vitality assessment at 1, 5, 10 min",            component: ApgarCalc },
   { id:"bilirubin",    category:"neonatal",    name:"Neonatal Hyperbilirubinemia",  desc:"AAP 2022 phototherapy, escalation & exchange thresholds",              component: BilirubinCalc },
@@ -3881,7 +5250,7 @@ export default function App() {
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "8px 16px 20px", background: `linear-gradient(transparent, ${COLORS.bg} 40%)`, pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto", display: "flex", justifyContent: "center" }}>
           <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 2, padding: "5px 12px", fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, fontWeight: 500, textAlign: "center" }}>
-            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v21
+            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v22
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v22'; // v21 → v22: GrowthCalc integrated — portrait 8:11 chart, sidebar percentile/Z panel, clinical age display logic, collapsible curve options, MM/DD/YYYY spinners, palette unified to COLORS
+const CACHE_NAME = 'pedicalc-v23'; // v22 → v23: Fenton 2025 official data; all specialty curves validated; inline measurement stats; keyboard focus fix; six new calculators; chart color/layout refinements
 const urlsToCache = [
   './',
   './index.html',

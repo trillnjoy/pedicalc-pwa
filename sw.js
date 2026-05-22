@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v23'; // v22 → v23: Fenton 2025 official data; all specialty curves validated; inline measurement stats; keyboard focus fix; six new calculators; chart color/layout refinements
+const CACHE_NAME = 'pedicalc-v24'; // v23 → v24: 8 new calculators (Corrected Ca, Osmolal Gap, P/F + S/F, A-a Gradient + OI, Murray, Berlin ARDS, PUCAI); category reorg + GI category; BSA Mosteller; field validation; label/unit polish
 const urlsToCache = [
   './',
   './index.html',

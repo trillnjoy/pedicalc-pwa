@@ -33,16 +33,17 @@ const stripTrailingZeros = (num) => {
 
 // ─── CALCULATOR DEFINITIONS ──────────────────────────────────────────────────
 const CATEGORIES = [
-  { id: "growth",      label: "Growth",      icon: "📈" },
-  { id: "neonatal",    label: "Neonatal",    icon: "👶🏼" },
-  { id: "fluid",       label: "FEN",         icon: "💧" },
-  { id: "neurologic",  label: "Neurologic",  icon: "🧠" },
-  { id: "respiratory", label: "Respiratory", icon: "🫁" },
-  { id: "cardiac",     label: "Cardiac",     icon: "♥️" },
-  { id: "toxicology",  label: "Toxicology",  icon: "☠️" },
-  { id: "dosing",      label: "Common Rx",   icon: "💊" },
-  { id: "readmission", label: "Risk Scores", icon: "📊" },
-  { id: "hematology",  label: "Hematology",  icon: "🩸" },
+  { id: "growth",          label: "Growth",          icon: "📈" },
+  { id: "neonatal",        label: "Neonatal",        icon: "👶🏼" },
+  { id: "fen_renal",       label: "FEN/Renal",       icon: "💧" },
+  { id: "neurologic",      label: "Neurologic",      icon: "🧠" },
+  { id: "respiratory",     label: "Respiratory",     icon: "🫁" },
+  { id: "cardiovascular",  label: "Cardiovascular",  icon: "🫀" },
+  { id: "gastroenterology",label: "GI",              icon: "💩" },
+  { id: "hematology",      label: "Hematology",      icon: "🩸" },
+  { id: "dosing",          label: "Common Rx",       icon: "💊" },
+  { id: "toxicology",      label: "Toxicology",      icon: "☠️" },
+  { id: "readmission",     label: "Risk Scores",     icon: "📊" },
 ];
 
 // ─── CALCULATOR REFERENCE INFORMATION ────────────────────────────────────────
@@ -118,6 +119,60 @@ const CALC_REFERENCES = {
     reference: "Mentzer WC Jr. Differentiation of iron deficiency from thalassemia trait. Lancet. 1973;1(7808):882.",
     guidelines: "Screening index only. Confirm with hemoglobin electrophoresis, serum ferritin, and iron studies. Not validated in mixed deficiency states or other hemoglobinopathies.",
     summary: "MCV / RBC count. <13 suggests thalassemia trait (small, numerous RBCs). >13 suggests iron deficiency anemia (small, fewer RBCs). Sensitivity ~85%, specificity ~85%. Not a substitute for definitive testing."
+  },
+  corrca: {
+    title: "Corrected Calcium for Hypoalbuminemia",
+    reference: "Payne RB, Little AJ, Williams RB, Milner JR. Interpretation of serum calcium in patients with abnormal serum proteins. BMJ. 1973;4(5893):643-646.",
+    guidelines: "Correct total calcium when albumin is abnormal. Does not apply to ionized calcium measurements. Ionized Ca is preferred when available.",
+    summary: "Ca(corr) = Ca(meas) + 0.8 × (4.0 − albumin). Normal corrected Ca: 8.5–10.5 mg/dL. Hypoalbuminemia reduces protein-bound calcium, causing total Ca to appear falsely low while ionized Ca may be normal."
+  },
+  osmoGap: {
+    title: "Osmolal Gap",
+    reference: "Dorwart WV, Chalmers L. Comparison of methods for calculating serum osmolality from chemical concentrations, and the prognostic value of such calculations. Clin Chem. 1975;21(2):190-194.",
+    guidelines: "Normal osmolal gap: 0–10 mOsm/kg. Gap >10 suggests unmeasured osmoles. Elevated gap with high anion gap acidosis: consider methanol, ethylene glycol, propylene glycol, isopropanol.",
+    summary: "Osmolal Gap = Measured OSM − Calculated OSM. Calculated OSM = 2×Na + BUN/2.8 + glucose/18. Elevated gap (>10) in the context of altered mental status and anion gap acidosis is a toxicology emergency until proven otherwise."
+  },
+  aaGradient: {
+    title: "Alveolar-Arterial (A-a) Oxygen Gradient",
+    reference: "Mellemgaard K. The alveolar-arterial oxygen difference: its size and components in normal man. Acta Physiol Scand. 1966;67(1):10-20.",
+    guidelines: "Normal A-a gradient = (age/4) + 4 mmHg (approximate). Elevated gradient suggests V/Q mismatch, shunt, or diffusion impairment. Normal gradient with hypoxemia suggests hypoventilation.",
+    summary: "PAO2 = (FiO2 × 713) − (PaCO2 / 0.8). A-a Gradient = PAO2 − PaO2. Assumes sea-level barometric pressure (760 mmHg) and RQ of 0.8. Elevation differentiates pulmonary from non-pulmonary causes of hypoxemia."
+  },
+  oi: {
+    title: "Oxygenation Index (OI)",
+    reference: "Ortiz RM, Cilley RE, Bartlett RH. Extracorporeal membrane oxygenation in pediatric respiratory failure. Pediatr Clin North Am. 1987;34(1):39-46.",
+    guidelines: "OI <4: Normal. OI 5–25: Moderate lung disease. OI >25: Severe lung disease. OI >40: ECMO threshold at many centers. Requires arterial PaO2 and mean airway pressure from ventilator.",
+    summary: "OI = (MAP × FiO2 × 100) / PaO2. A ventilator-dependent measure of oxygenation efficiency that accounts for the cost (airway pressure) of achieving a given PaO2. Higher OI = worse gas exchange relative to support required."
+  },
+  murray: {
+    title: "Murray Lung Injury Score",
+    reference: "Murray JF, Matthay MA, Luce JM, Flick MR. An expanded definition of the adult respiratory distress syndrome. Am Rev Respir Dis. 1988;138(3):720-723.",
+    guidelines: "Score <0.1: No injury. 0.1–2.5: Mild to moderate. >2.5: Severe lung injury (ARDS). Score is mean of components entered; components may be omitted if not available.",
+    summary: "Four components: chest X-ray (0=no consolidation, 1=1 quadrant, 2=2 quadrants, 3=3 quadrants, 4=4 quadrants); P/F ratio (0=≥300, 1=225–299, 2=175–224, 3=100–174, 4=<100); PEEP (0=≤5, 1=6–8, 2=9–11, 3=12–14, 4=≥15); compliance (0=≥80, 1=60–79, 2=40–59, 3=20–39, 4=≤19 mL/cmH2O)."
+  },
+  berlin: {
+    title: "Berlin ARDS Definition",
+    reference: "ARDS Definition Task Force; Ranieri VM, Rubenfeld GD, Thompson BT, et al. Acute respiratory distress syndrome: the Berlin Definition. JAMA. 2012;307(23):2526-2533.",
+    guidelines: "Requires: (1) onset within 1 week of clinical insult; (2) bilateral opacities on CXR/CT not explained by effusions, collapse, or nodules; (3) respiratory failure not fully explained by cardiac failure or fluid overload; (4) P/F ratio <300 with PEEP ≥5 cmH2O.",
+    summary: "Mild ARDS: P/F 200–300 with PEEP ≥5. Moderate: P/F 100–200 with PEEP ≥5. Severe: P/F <100 with PEEP ≥5. Replaces the 1994 American-European Consensus Definition. P/F ratio must be measured on PEEP ≥5 cmH2O."
+  },
+  pfRatio: {
+    title: "P/F Ratio (Horowitz Index)",
+    reference: "Horovitz JH, Carrico CJ, Shires GT. Pulmonary response to major injury. Arch Surg. 1974;108(3):349-355.",
+    guidelines: "Normal: >400 mmHg. Mild ARDS (Berlin): 200–300 on PEEP ≥5. Moderate: 100–200. Severe: <100. Values should be obtained after ≥30 min on stable ventilator settings.",
+    summary: "P/F = PaO2 (mmHg) / FiO2 (as decimal, 0.21–1.0). Simple, widely used index of oxygenation efficiency independent of FiO2. Core criterion for ARDS classification and ventilator management decisions."
+  },
+  sfRatio: {
+    title: "S/F Ratio (SpO2/FiO2)",
+    reference: "Rice TW, Wheeler AP, Bernard GR, et al. Comparison of the SpO2/FiO2 ratio and the PaO2/FiO2 ratio in patients with acute lung injury. Chest. 2007;132(2):410-417.",
+    guidelines: "S/F ≥235 correlates with P/F ≥300 (no ARDS). S/F 150–235 correlates with P/F 200–300 (mild). S/F 90–149 correlates with P/F 100–200 (moderate). S/F <89 correlates with P/F <100 (severe). Unreliable when SpO2 ≥97% (pulse ox saturation).",
+    summary: "S/F = SpO2 (%) / FiO2 (as decimal). Non-invasive surrogate for P/F ratio when arterial blood gas is unavailable. Validated correlation with P/F in ARDS monitoring. SpO2 should be ≤96% for reliable correlation."
+  },
+  pucai: {
+    title: "PUCAI — Pediatric Ulcerative Colitis Activity Index",
+    reference: "Turner D, Otley AR, Mack D, et al. Development, validation, and evaluation of a pediatric ulcerative colitis activity index. Gastroenterology. 2007;133(2):423-432.",
+    guidelines: "PUCAI <10: Remission · 10–34: Mild · 35–64: Moderate · ≥65: Severe. Response defined as ≥20-point decrease. Validated for children 3–17 years. Does not require endoscopy.",
+    summary: "Six-item score for pediatric UC disease activity (max 85). Validated against physician global assessment, endoscopic activity, and mucosal histology. Widely used for treatment escalation and clinical trial enrollment."
   },
   pews: {
     title: "Pediatric Early Warning Score (PEWS)",
@@ -288,7 +343,7 @@ function ScoreRow({ label, options, value, onChange, cols, hideScore }) {
   );
 }
 
-function NumberInput({ label, value, onChange, min, max, step = 1, unit }) {
+function NumberInput({ label, labelNode, value, onChange, min, max, step = 1, unit }) {
   const [focused, setFocused] = useState(false);
   const inputRef = useRef(null);
   const displayValue = (() => {
@@ -298,13 +353,15 @@ function NumberInput({ label, value, onChange, min, max, step = 1, unit }) {
     return str.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
   })();
 
-  const physicalUnitPattern = /^(mg\/dL|mg\/kg|mcg\/mL|mEq\/L|mmol\/L|mg\/L|g\/dL|kg|grams|cm|bpm|ms|%|°C|°F|hours?( of life)?|days?|weeks?|years?( ≤\d+)?|breaths\/min|×10³\/μL|hr|mL|L|IU\/L|U\/L)$/i;
+  const physicalUnitPattern = /^(mg\/dL|mg\/kg|mcg\/mL|mEq\/L|mmol\/L|mg\/L|g\/dL|kg|grams|cm|bpm|ms|%|°C|°F|hours?( of life)?|days?|weeks?|years?( ≤\d+)?|breaths\/min|×10³\/μL|hr|mL|L|IU\/L|U\/L|mOsm\/kg|mmHg|mmHg \(on PEEP ≥5\)|cmH₂O|fL|×10⁶\/µL|0\.21–1\.0|\(0\.\d[\d.–]+\)|yr|yr \(for normal\)|m²)$/i;
   const isPhysicalUnit = unit && physicalUnitPattern.test(unit.trim());
 
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ color: COLORS.navy, fontSize: 12, marginBottom: 5, fontFamily: "'IBM Plex Sans', sans-serif", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>
-        {label}{unit && <span style={{ color: isPhysicalUnit ? "#b8860b" : COLORS.textMuted, fontWeight: 600 }}> ({unit})</span>}
+        {labelNode
+          ? <>{labelNode}{unit && <span style={{ color: isPhysicalUnit ? "#b8860b" : COLORS.textMuted, fontWeight: 600 }}> ({unit})</span>}</>
+          : <>{label}{unit && <span style={{ color: isPhysicalUnit ? "#b8860b" : COLORS.textMuted, fontWeight: 600 }}> ({unit})</span>}</>}
       </div>
       <input
         ref={inputRef}
@@ -1514,7 +1571,7 @@ function FluidCalc() {
     <div onClick={onToggle} style={{ position: "relative", marginBottom: open ? 0 : 10, marginTop: 10, cursor: "pointer", userSelect: "none" }}>
       <div style={{ height: 2, background: "#d4a444", borderRadius: 1 }} />
       <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: COLORS.bg, padding: "0 8px", lineHeight: 1 }}>
-        <span style={{ color: "#d4a444", fontSize: 14, fontWeight: 700 }}>{open ? "∧" : "∨"}</span>
+        <span style={{ color: "#d4a444", fontSize: 11, fontWeight: 700, letterSpacing: "0.03em" }}>{open ? "∧  Close to hide details  ∧" : "∨  Expand to see details  ∨"}</span>
       </div>
     </div>
   );
@@ -2644,6 +2701,525 @@ function DVTCalc() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // CALCULATOR: CATCH (Head CT Rule — Canadian)
 // ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+// CALCULATOR: CORRECTED CALCIUM FOR HYPOALBUMINEMIA
+// Ca(corr) = Ca(meas) + 0.8 × (4.0 − albumin)
+// ═══════════════════════════════════════════════════════════════════════════════
+function CorrCaCalc() {
+  const [ca,  setCa]  = useState("");
+  const [alb, setAlb] = useState("");
+
+  const caNum  = parseFloat(ca);
+  const albNum = parseFloat(alb);
+  const valid  = ca && alb && !isNaN(caNum) && !isNaN(albNum) && albNum > 0;
+  const corrCa = valid ? caNum + 0.8 * (4.0 - albNum) : null;
+
+  const interp = corrCa === null ? null
+    : corrCa < 8.5  ? {label:"Low (hypocalcemia)", color:COLORS.danger}
+    : corrCa <= 10.5 ? {label:"Normal", color:COLORS.success}
+    : {label:"High (hypercalcemia)", color:COLORS.danger};
+
+  const rowStyle = {display:"flex",justifyContent:"space-between",
+    padding:"8px 0",borderBottom:`1px solid ${COLORS.border}`};
+
+  return (
+    <div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:4}}>
+        <NumberInput label="Measured Ca" value={ca} onChange={setCa}
+          min={0} max={20} step={0.1} unit="mg/dL"/>
+        <NumberInput label="Albumin" value={alb} onChange={setAlb}
+          min={0} max={8} step={0.1} unit="g/dL"/>
+      </div>
+      {corrCa !== null && (
+        <div style={{marginTop:16,padding:"16px 18px",borderRadius:14,
+          background:COLORS.card,border:`1.5px solid ${interp.color}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",
+            alignItems:"baseline",marginBottom:10}}>
+            <span style={{fontSize:11,fontWeight:700,color:COLORS.textMuted,
+              fontFamily:"'DM Mono',monospace",textTransform:"uppercase",
+              letterSpacing:"0.05em"}}>Corrected Calcium</span>
+            <span style={{fontSize:28,fontWeight:800,color:interp.color,
+              fontFamily:"'Sora',sans-serif",lineHeight:1}}>
+              {corrCa.toFixed(2)}
+            </span>
+          </div>
+          <div style={rowStyle}>
+            <span style={{color:COLORS.textMuted,fontSize:12,fontFamily:"'DM Mono',monospace"}}>mg/dL</span>
+            <span style={{color:interp.color,fontWeight:700,fontSize:13,
+              fontFamily:"'IBM Plex Sans',sans-serif"}}>{interp.label}</span>
+          </div>
+          <div style={{...rowStyle,borderBottom:"none"}}>
+            <span style={{color:COLORS.textMuted,fontSize:11,fontFamily:"'DM Mono',monospace"}}>
+              Normal corrected Ca: 8.5–10.5 mg/dL
+            </span>
+          </div>
+          <div style={{marginTop:8,fontSize:10,color:COLORS.textMuted,
+            fontFamily:"'DM Mono',monospace",lineHeight:1.5}}>
+            Formula: Ca + 0.8 × (4.0 − albumin) · Use ionized Ca when available — this correction is an estimate
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CALCULATOR: OSMOLAL GAP
+// Calc OSM = 2×Na + BUN/2.8 + glucose/18
+// Osmolal Gap = Measured OSM − Calculated OSM (normal 0–10 mOsm/kg)
+// ═══════════════════════════════════════════════════════════════════════════════
+function OsmolalGapCalc() {
+  const [measOsm, setMeasOsm] = useState("");
+  const [na,      setNa]      = useState("");
+  const [bun,     setBun]     = useState("");
+  const [glucose, setGlucose] = useState("");
+
+  const mOsm = parseFloat(measOsm);
+  const naN  = parseFloat(na);
+  const bunN = parseFloat(bun);
+  const glcN = parseFloat(glucose);
+
+  const hasCalc = na && bun && glucose;
+  const calcOsm = hasCalc ? 2*naN + bunN/2.8 + glcN/18 : null;
+  const gap     = (measOsm && calcOsm !== null) ? mOsm - calcOsm : null;
+
+  const interp = gap === null ? null
+    : gap <= 10 ? {label:"Normal (≤10)", color:COLORS.success}
+    : gap <= 20 ? {label:"Mildly elevated — investigate", color:COLORS.warning}
+    : {label:"Significantly elevated — toxin screen", color:COLORS.danger};
+
+  const rowStyle = {display:"flex",justifyContent:"space-between",
+    padding:"8px 0",borderBottom:`1px solid ${COLORS.border}`};
+
+  return (
+    <div>
+      <NumberInput label="Measured Osmolality" value={measOsm} onChange={setMeasOsm}
+        min={200} max={500} unit="mOsm/kg"/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:4}}>
+        <NumberInput label="Sodium" value={na} onChange={setNa}
+          min={100} max={180} unit="mEq/L"/>
+        <NumberInput label="BUN" value={bun} onChange={setBun}
+          min={0} max={200} unit="mg/dL"/>
+        <NumberInput label="Glucose" value={glucose} onChange={setGlucose}
+          min={0} max={2000} unit="mg/dL"/>
+      </div>
+      {(calcOsm !== null || gap !== null) && (
+        <div style={{marginTop:16,padding:"16px 18px",borderRadius:14,
+          background:COLORS.card,border:`1.5px solid ${gap !== null ? interp.color : COLORS.border}`}}>
+          {calcOsm !== null && (
+            <div style={rowStyle}>
+              <span style={{color:COLORS.textMuted,fontSize:12,fontFamily:"'DM Mono',monospace"}}>Calculated OSM</span>
+              <span style={{color:COLORS.accent,fontWeight:700,fontSize:14,
+                fontFamily:"'Sora',sans-serif"}}>{calcOsm.toFixed(1)} mOsm/kg</span>
+            </div>
+          )}
+          {gap !== null && (
+            <>
+              <div style={rowStyle}>
+                <span style={{color:COLORS.textMuted,fontSize:12,fontFamily:"'DM Mono',monospace"}}>Osmolal Gap</span>
+                <span style={{color:interp.color,fontWeight:800,fontSize:22,
+                  fontFamily:"'Sora',sans-serif",lineHeight:1}}>{gap.toFixed(1)}</span>
+              </div>
+              <div style={{...rowStyle,borderBottom:"none"}}>
+                <span style={{color:interp.color,fontWeight:700,fontSize:13,
+                  fontFamily:"'IBM Plex Sans',sans-serif"}}>{interp.label}</span>
+              </div>
+              {gap > 10 && (
+                <div style={{marginTop:8,fontSize:10,color:COLORS.textMuted,
+                  fontFamily:"'DM Mono',monospace",lineHeight:1.6}}>
+                  Elevated gap: consider methanol · ethylene glycol · propylene glycol ·
+                  isopropanol · mannitol · severe renal failure · DKA · alcoholic ketoacidosis
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CALCULATOR: P/F RATIO AND S/F RATIO
+// P/F = PaO2 / FiO2    S/F = SpO2 / FiO2
+// Combined into one calculator — both use FiO2, natural pairing
+// ═══════════════════════════════════════════════════════════════════════════════
+function PFRatioCalc() {
+  const [pao2, setPao2] = useState("");
+  const [spo2, setSpo2] = useState("");
+  const [fio2, setFio2] = useState("");  // accept 0.21–1.0 or 21–100
+
+  // Normalise FiO2 — accept percentage or decimal
+  const fio2Raw = parseFloat(fio2);
+  const fio2Dec = fio2Raw > 1 ? fio2Raw / 100 : fio2Raw;
+  const fio2Valid = fio2Dec >= 0.21 && fio2Dec <= 1.0;
+
+  const pao2N = parseFloat(pao2);
+  const spo2N = parseFloat(spo2);
+
+  const pf = (pao2 && fio2Valid) ? pao2N / fio2Dec : null;
+  const sf = (spo2 && fio2Valid) ? spo2N / fio2Dec : null;
+
+  const pfInterp = pf === null ? null
+    : pf >= 400 ? {label:"Normal (≥400)", color:COLORS.success}
+    : pf >= 300 ? {label:"Borderline — mild ARDS threshold", color:COLORS.warning}
+    : pf >= 200 ? {label:"Mild ARDS (Berlin)", color:COLORS.warning}
+    : pf >= 100 ? {label:"Moderate ARDS (Berlin)", color:COLORS.orange}
+    : {label:"Severe ARDS (Berlin)", color:COLORS.danger};
+
+  const sfInterp = sf === null ? null
+    : sf >= 235 ? {label:"Correlates P/F ≥300", color:COLORS.success}
+    : sf >= 150 ? {label:"Correlates P/F 200–300 (mild)", color:COLORS.warning}
+    : sf >= 90  ? {label:"Correlates P/F 100–200 (moderate)", color:COLORS.orange}
+    : {label:"Correlates P/F <100 (severe)", color:COLORS.danger};
+
+  const spo2Unreliable = spo2N >= 97;
+  const rowStyle = {display:"flex",justifyContent:"space-between",
+    padding:"8px 0",borderBottom:`1px solid ${COLORS.border}`};
+
+  return (
+    <div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:4}}>
+        <NumberInput labelNode={<>P<span style={{textTransform:"none"}}>a</span>O₂</>} value={pao2} onChange={setPao2}
+          min={20} max={600} unit="mmHg"/>
+        <NumberInput labelNode={<>S<span style={{textTransform:"none"}}>p</span>O₂</>} value={spo2} onChange={setSpo2}
+          min={50} max={100} unit="%"/>
+        <NumberInput labelNode={<>F<span style={{textTransform:"none"}}>i</span>O₂</>} value={fio2} onChange={setFio2}
+          min={0.21} max={1.0} step={0.01} unit="0.21–1.0"/>
+      </div>
+      {spo2 && spo2N >= 97 && (
+        <div style={{marginBottom:8,padding:"6px 10px",borderRadius:6,
+          background:"#fff3cd",border:"1px solid #d9822b",
+          fontSize:10,color:COLORS.warning,fontFamily:"'DM Mono',monospace"}}>
+          ⚠ SpO₂ ≥97% — S/F ratio unreliable at saturation; use P/F if arterial gas available
+        </div>
+      )}
+      {(pf !== null || sf !== null) && (
+        <div style={{marginTop:8,padding:"16px 18px",borderRadius:14,
+          background:COLORS.card,border:`1.5px solid ${COLORS.border}`}}>
+          {pf !== null && (
+            <>
+              <div style={rowStyle}>
+                <span style={{color:COLORS.textMuted,fontSize:12,fontFamily:"'DM Mono',monospace"}}>P/F Ratio</span>
+                <span style={{color:pfInterp.color,fontWeight:800,fontSize:22,
+                  fontFamily:"'Sora',sans-serif",lineHeight:1}}>{pf.toFixed(0)}</span>
+              </div>
+              <div style={rowStyle}>
+                <span style={{color:pfInterp.color,fontWeight:700,fontSize:12,
+                  fontFamily:"'IBM Plex Sans',sans-serif"}}>{pfInterp.label}</span>
+              </div>
+            </>
+          )}
+          {sf !== null && (
+            <>
+              <div style={rowStyle}>
+                <span style={{color:COLORS.textMuted,fontSize:12,fontFamily:"'DM Mono',monospace"}}>S/F Ratio</span>
+                <span style={{color:sfInterp.color,fontWeight:800,fontSize:22,
+                  fontFamily:"'Sora',sans-serif",lineHeight:1,
+                  opacity:spo2Unreliable?0.5:1}}>{sf.toFixed(0)}</span>
+              </div>
+              <div style={{...rowStyle,borderBottom:"none"}}>
+                <span style={{color:sfInterp.color,fontWeight:700,fontSize:12,
+                  fontFamily:"'IBM Plex Sans',sans-serif",
+                  opacity:spo2Unreliable?0.5:1}}>{sfInterp.label}</span>
+              </div>
+            </>
+          )}
+          <div style={{marginTop:8,fontSize:10,color:COLORS.textMuted,
+            fontFamily:"'DM Mono',monospace",lineHeight:1.5}}>
+            P/F: Berlin ARDS requires PEEP ≥5 cmH2O · S/F valid when SpO₂ 80–96%
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CALCULATOR: ALVEOLAR-ARTERIAL GRADIENT AND OXYGENATION INDEX
+// A-a gradient = PAO2 − PaO2    PAO2 = (FiO2 × 713) − (PaCO2/0.8)
+// OI = (MAP × FiO2 × 100) / PaO2
+// Combined — both require FiO2 and PaO2, natural pairing
+// ═══════════════════════════════════════════════════════════════════════════════
+function AAGradientCalc() {
+  const [fio2,  setFio2]  = useState("");
+  const [paco2, setPaco2] = useState("");
+  const [pao2,  setPao2]  = useState("");
+  const [map_,  setMap_]  = useState("");  // mean airway pressure for OI
+  const [age,   setAge]   = useState("");  // for normal A-a range
+
+  const fio2Raw = parseFloat(fio2);
+  const fio2Dec = fio2Raw > 1 ? fio2Raw / 100 : fio2Raw;
+  const fio2Valid = fio2Dec >= 0.21 && fio2Dec <= 1.0;
+
+  const paco2N = parseFloat(paco2);
+  const pao2N  = parseFloat(pao2);
+  const mapN   = parseFloat(map_);
+  const ageN   = parseFloat(age);
+
+  // Alveolar PO2 at sea level (PB 760 mmHg, PH2O 47 mmHg → PB-PH2O = 713)
+  const pAO2 = (fio2Valid && paco2) ? (fio2Dec * 713) - (paco2N / 0.8) : null;
+  const aaGrad = (pAO2 !== null && pao2) ? pAO2 - pao2N : null;
+
+  // Normal A-a gradient approximation: (age/4) + 4 mmHg
+  const normalAA = ageN ? (ageN / 4) + 4 : null;
+
+  const aaInterp = aaGrad === null ? null
+    : aaGrad <= (normalAA ?? 15)
+      ? {label:"Normal", color:COLORS.success}
+    : aaGrad <= 30
+      ? {label:"Mildly elevated", color:COLORS.warning}
+    : aaGrad <= 60
+      ? {label:"Moderately elevated", color:COLORS.orange}
+    : {label:"Severely elevated", color:COLORS.danger};
+
+  // Oxygenation Index — requires MAP (mean airway pressure from vent)
+  const oi = (fio2Valid && pao2 && map_) ? (mapN * fio2Dec * 100) / pao2N : null;
+
+  const oiInterp = oi === null ? null
+    : oi < 4  ? {label:"Normal oxygenation", color:COLORS.success}
+    : oi < 8  ? {label:"Mild impairment", color:COLORS.warning}
+    : oi < 16 ? {label:"Moderate impairment", color:COLORS.orange}
+    : oi < 25 ? {label:"Severe lung disease", color:COLORS.danger}
+    : oi < 40 ? {label:"Critical — ECMO evaluation", color:COLORS.danger}
+    : {label:"ECMO threshold (OI ≥40)", color:COLORS.danger};
+
+  const rowStyle = {display:"flex",justifyContent:"space-between",
+    padding:"8px 0",borderBottom:`1px solid ${COLORS.border}`};
+
+  return (
+    <div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:4}}>
+        <NumberInput labelNode={<>F<span style={{textTransform:"none"}}>i</span>O₂</>} value={fio2} onChange={setFio2}
+          min={0.21} max={1.0} step={0.01} unit="0.21–1.0"/>
+        <NumberInput labelNode={<>P<span style={{textTransform:"none"}}>a</span>CO₂</>} value={paco2} onChange={setPaco2}
+          min={10} max={120} unit="mmHg"/>
+        <NumberInput labelNode={<>P<span style={{textTransform:"none"}}>a</span>O₂</>} value={pao2} onChange={setPao2}
+          min={20} max={600} unit="mmHg"/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:4}}>
+        <NumberInput label="Mean Airw Press" value={map_} onChange={setMap_}
+          min={0} max={50} unit="cmH₂O"/>
+        <NumberInput label="Age" value={age} onChange={setAge}
+          min={0} max={25} unit="yr"/>
+      </div>
+
+      {(pAO2 !== null || oi !== null) && (
+        <div style={{marginTop:8,padding:"16px 18px",borderRadius:14,
+          background:COLORS.card,border:`1.5px solid ${COLORS.border}`}}>
+
+          {/* A-a Gradient section */}
+          {pAO2 !== null && (
+            <>
+              <div style={{color:COLORS.textMuted,fontSize:9,fontWeight:700,
+                fontFamily:"'DM Mono',monospace",textTransform:"uppercase",
+                letterSpacing:"0.06em",marginBottom:6}}>A-a Gradient</div>
+              <div style={rowStyle}>
+                <span style={{color:COLORS.textMuted,fontSize:12,fontFamily:"'DM Mono',monospace"}}>Alveolar PO₂ (PAO₂)</span>
+                <span style={{color:COLORS.accent,fontWeight:700,fontSize:14,
+                  fontFamily:"'Sora',sans-serif"}}>{pAO2.toFixed(1)} mmHg</span>
+              </div>
+              {aaGrad !== null && (
+                <>
+                  <div style={rowStyle}>
+                    <span style={{color:COLORS.textMuted,fontSize:12,fontFamily:"'DM Mono',monospace"}}>A-a Gradient</span>
+                    <span style={{color:aaInterp.color,fontWeight:800,fontSize:22,
+                      fontFamily:"'Sora',sans-serif",lineHeight:1}}>{aaGrad.toFixed(1)}</span>
+                  </div>
+                  <div style={rowStyle}>
+                    <span style={{color:aaInterp.color,fontWeight:700,fontSize:12,
+                      fontFamily:"'IBM Plex Sans',sans-serif"}}>{aaInterp.label}</span>
+                    {normalAA && <span style={{color:COLORS.textMuted,fontSize:11,
+                      fontFamily:"'DM Mono',monospace"}}>Normal ≤{normalAA.toFixed(0)} mmHg</span>}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+
+          {/* Oxygenation Index section */}
+          {oi !== null && (
+            <>
+              <div style={{color:COLORS.textMuted,fontSize:9,fontWeight:700,
+                fontFamily:"'DM Mono',monospace",textTransform:"uppercase",
+                letterSpacing:"0.06em",marginTop:pAO2?12:0,marginBottom:6}}>
+                Oxygenation Index</div>
+              <div style={rowStyle}>
+                <span style={{color:COLORS.textMuted,fontSize:12,fontFamily:"'DM Mono',monospace"}}>OI</span>
+                <span style={{color:oiInterp.color,fontWeight:800,fontSize:22,
+                  fontFamily:"'Sora',sans-serif",lineHeight:1}}>{oi.toFixed(1)}</span>
+              </div>
+              <div style={{...rowStyle,borderBottom:"none"}}>
+                <span style={{color:oiInterp.color,fontWeight:700,fontSize:12,
+                  fontFamily:"'IBM Plex Sans',sans-serif"}}>{oiInterp.label}</span>
+              </div>
+              {oi >= 40 && (
+                <div style={{marginTop:8,padding:"6px 10px",borderRadius:6,
+                  background:"rgba(192,57,43,0.08)",border:`1px solid ${COLORS.danger}`,
+                  fontSize:10,color:COLORS.danger,fontFamily:"'DM Mono',monospace"}}>
+                  OI ≥40: ECMO consultation threshold at many centers · Verify MAP is mean airway pressure, not mean arterial pressure
+                </div>
+              )}
+            </>
+          )}
+
+          <div style={{marginTop:8,fontSize:10,color:COLORS.textMuted,
+            fontFamily:"'DM Mono',monospace",lineHeight:1.5}}>
+            Assumes sea level (PB 760 mmHg) · OI requires mechanical ventilation
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CALCULATOR: MURRAY LUNG INJURY SCORE
+// Murray JF et al. Am Rev Respir Dis. 1988;138(3):720-723.
+// Mean of scored components (1–4 required; omit any unavailable)
+// ═══════════════════════════════════════════════════════════════════════════════
+function MurrayCalc() {
+  const [vals, setVals] = useState({
+    xray:       null,
+    pf:         null,
+    peep:       null,
+    compliance: null,
+  });
+  const set = (k, v) => setVals(p => ({...p, [k]: v}));
+
+  const entered = Object.values(vals).filter(v => v !== null);
+  const count   = entered.length;
+  const sum     = entered.reduce((a, v) => a + v, 0);
+  const score   = count > 0 ? sum / count : null;
+
+  const interp = score === null ? null
+    : score < 0.1 ? {label:"No lung injury", color:COLORS.success}
+    : score <= 2.5 ? {label:"Mild–moderate lung injury", color:COLORS.warning}
+    : {label:"Severe lung injury (ARDS)", color:COLORS.danger};
+
+  return (
+    <div>
+      <ScoreRow label="Chest X-Ray Consolidation"
+        value={vals.xray} onChange={v=>set("xray",v)}
+        options={[
+          {value:0, label:"0 — No consolidation"},
+          {value:1, label:"1 — 1 quadrant"},
+          {value:2, label:"2 — 2 quadrants"},
+          {value:3, label:"3 — 3 quadrants"},
+          {value:4, label:"4 — 4 quadrants"},
+        ]}/>
+      <ScoreRow label="P/F Ratio (mmHg)"
+        value={vals.pf} onChange={v=>set("pf",v)}
+        options={[
+          {value:0, label:"0 — ≥300"},
+          {value:1, label:"1 — 225–299"},
+          {value:2, label:"2 — 175–224"},
+          {value:3, label:"3 — 100–174"},
+          {value:4, label:"4 — <100"},
+        ]}/>
+      <ScoreRow label="PEEP (cmH₂O)"
+        value={vals.peep} onChange={v=>set("peep",v)}
+        options={[
+          {value:0, label:"0 — ≤5"},
+          {value:1, label:"1 — 6–8"},
+          {value:2, label:"2 — 9–11"},
+          {value:3, label:"3 — 12–14"},
+          {value:4, label:"4 — ≥15"},
+        ]}/>
+      <ScoreRow label="Respiratory Compliance (mL/cmH₂O)"
+        value={vals.compliance} onChange={v=>set("compliance",v)}
+        options={[
+          {value:0, label:"0 — ≥80"},
+          {value:1, label:"1 — 60–79"},
+          {value:2, label:"2 — 40–59"},
+          {value:3, label:"3 — 20–39"},
+          {value:4, label:"4 — ≤19"},
+        ]}/>
+      {count > 0 && score !== null && (
+        <>
+          <ResultBadge
+            score={score.toFixed(2)}
+            label={interp.label}
+            color={interp.color}
+            sublabel={`Mean of ${count} component${count>1?"s":""} scored · Murray 1988`}/>
+          <div style={{marginTop:8,padding:"8px 12px",borderRadius:8,
+            background:COLORS.surface,border:`1px solid ${COLORS.border}`,
+            fontSize:10,color:COLORS.textMuted,fontFamily:"'DM Mono',monospace",
+            lineHeight:1.6}}>
+            {"<0.1: No injury · 0.1–2.5: Mild–moderate · >2.5: Severe · "}
+            Components may be omitted if unavailable — score is the mean of those entered
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CALCULATOR: BERLIN ARDS DEFINITION
+// Ranieri VM et al. JAMA. 2012;307(23):2526-2533.
+// ═══════════════════════════════════════════════════════════════════════════════
+function BerlinARDSCalc() {
+  const [timing,    setTiming]    = useState(null);
+  const [bilateral, setBilateral] = useState(null);
+  const [cardiac,   setCardiac]   = useState(null);
+  const [peep,      setPeep]      = useState(null);
+  const [pf,        setPf]        = useState("");
+
+  const pfN = parseFloat(pf);
+  const allPrereqs = timing === 1 && bilateral === 1 && cardiac === 1 && peep === 1;
+
+  const severity = allPrereqs && pf
+    ? pfN >= 200 ? {label:"Mild ARDS", sub:"P/F 200–300, PEEP ≥5", color:COLORS.warning}
+    : pfN >= 100 ? {label:"Moderate ARDS", sub:"P/F 100–200, PEEP ≥5", color:COLORS.orange}
+    : {label:"Severe ARDS", sub:"P/F <100, PEEP ≥5", color:COLORS.danger}
+    : null;
+
+  const prereqsMet = timing !== null && bilateral !== null && cardiac !== null && peep !== null;
+  const notMet = prereqsMet && !allPrereqs;
+
+  return (
+    <div>
+      <ScoreRow label="Onset within 1 week of insult"
+        value={timing} onChange={setTiming}
+        options={[{value:0,label:"No"},{value:1,label:"Yes"}]} hideScore/>
+      <ScoreRow label="Bilateral opacities on CXR/CT"
+        value={bilateral} onChange={setBilateral}
+        options={[{value:0,label:"No"},{value:1,label:"Yes"}]} hideScore/>
+      <ScoreRow label="Not explained by cardiac failure / fluid overload"
+        value={cardiac} onChange={setCardiac}
+        options={[{value:0,label:"No"},{value:1,label:"Yes"}]} hideScore/>
+      <ScoreRow label="PEEP ≥5 cmH₂O applied"
+        value={peep} onChange={setPeep}
+        options={[{value:0,label:"No"},{value:1,label:"Yes"}]} hideScore/>
+      {allPrereqs && (
+        <NumberInput label="P/F Ratio" value={pf} onChange={setPf}
+          min={0} max={600} unit="mmHg (on PEEP ≥5)"/>
+      )}
+      {notMet && (
+        <div style={{marginTop:12,padding:"10px 14px",borderRadius:10,
+          background:COLORS.surface,border:`1px solid ${COLORS.border}`,
+          color:COLORS.textMuted,fontSize:12,fontFamily:"'DM Mono',monospace"}}>
+          Berlin criteria not met — all four prerequisites must be present for ARDS classification
+        </div>
+      )}
+      {severity && (
+        <>
+          <ResultBadge score={severity.label} label={severity.sub}
+            color={severity.color} sublabel="Berlin Definition · JAMA 2012"/>
+          <div style={{marginTop:8,padding:"8px 12px",borderRadius:8,
+            background:COLORS.surface,border:`1px solid ${COLORS.border}`,
+            fontSize:10,color:COLORS.textMuted,fontFamily:"'DM Mono',monospace",
+            lineHeight:1.6}}>
+            Mild mortality ~27% · Moderate ~32% · Severe ~45% (Berlin validation cohort) ·
+            P/F ratio must be obtained on PEEP ≥5 cmH₂O with stable ventilator settings ≥30 min
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // CALCULATOR: BRONCHIOLITIS SEVERITY
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -5331,6 +5907,139 @@ function today() {
   return new Date().toISOString().slice(0,10);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// CALCULATOR: PUCAI — Pediatric Ulcerative Colitis Activity Index
+// Turner D et al. Gastroenterology. 2007;133(2):423-432.
+// Six items, non-uniform point weights, max score = 85.
+// ═══════════════════════════════════════════════════════════════════════════════
+function PUCAICalc() {
+  const [vals, setVals] = useState({
+    pain:     null,
+    bleeding: null,
+    stool:    null,
+    number:   null,
+    nocturnal:null,
+    activity: null,
+  });
+  const set = (k, v) => setVals(p => ({...p, [k]: v}));
+
+  const filled = Object.values(vals).every(v => v !== null);
+  const score  = Object.values(vals).reduce((a, v) => a + (v ?? 0), 0);
+
+  const category =
+    score < 10 ? "Remission" :
+    score < 35 ? "Mild Active" :
+    score < 65 ? "Moderate Active" :
+                 "Severe Active";
+
+  const color =
+    score < 10 ? COLORS.success :
+    score < 35 ? COLORS.warning :
+    score < 65 ? COLORS.orange  :
+                 COLORS.danger;
+
+  const guidance =
+    score < 10 ? "Maintain current therapy · Routine follow-up" :
+    score < 35 ? "Optimize 5-ASA · Consider short-course steroids if not improving" :
+    score < 65 ? "Systemic steroids or biologic escalation · GI consultation" :
+                 "Urgent GI consultation · IV steroids vs biologic rescue · Consider hospitalization";
+
+  return (
+    <div>
+      <ScoreRow label="Abdominal Pain"
+        value={vals.pain} onChange={v=>set("pain",v)}
+        options={[
+          {value:0,  label:"0 — None"},
+          {value:5,  label:"5 — Can be ignored"},
+          {value:10, label:"10 — Cannot be ignored"},
+        ]}/>
+
+      <ScoreRow label="Rectal Bleeding"
+        value={vals.bleeding} onChange={v=>set("bleeding",v)}
+        options={[
+          {value:0,  label:"0 — None"},
+          {value:10, label:"10 — Sm Amt, <50% of stools"},
+          {value:20, label:"20 — Sm Amt, ≥50% of stools"},
+          {value:30, label:"30 — Lg Amt, >50% of stools"},
+        ]}/>
+
+      <ScoreRow label="Stool Consistency"
+        value={vals.stool} onChange={v=>set("stool",v)}
+        options={[
+          {value:0,  label:"0 — Formed"},
+          {value:5,  label:"5 — Partially formed"},
+          {value:10, label:"10 — Completely unformed"},
+        ]}/>
+
+      <ScoreRow label="Number of Stools / 24h"
+        value={vals.number} onChange={v=>set("number",v)}
+        options={[
+          {value:0,  label:"0 — 0–2 stools"},
+          {value:10, label:"10 — 3–5 stools"},
+          {value:15, label:"15 — 6–8 stools"},
+          {value:20, label:"20 — >8 stools"},
+        ]}/>
+
+      <ScoreRow label="Nocturnal Stools (wakening)"
+        value={vals.nocturnal} onChange={v=>set("nocturnal",v)}
+        options={[
+          {value:0,  label:"0 — No"},
+          {value:10, label:"10 — Yes"},
+        ]} hideScore/>
+
+      <ScoreRow label="Activity Level"
+        value={vals.activity} onChange={v=>set("activity",v)}
+        options={[
+          {value:0,  label:"0 — No Limit"},
+          {value:5,  label:"5 — Occ Limit"},
+          {value:10, label:"10 — Severe Restriction"},
+        ]}/>
+
+      {filled && (
+        <>
+          <ResultBadge
+            score={`${score}/85`}
+            label={category}
+            color={color}
+            sublabel="PUCAI · Turner 2007 · Response = ≥20-pt decrease · Remission < 10"/>
+          <div style={{marginTop:8,padding:"10px 14px",borderRadius:10,
+            background:COLORS.surface,border:`1px solid ${COLORS.border}`,
+            color:COLORS.textMuted,fontSize:11,fontFamily:"'DM Mono',monospace",
+            lineHeight:1.6}}>
+            {guidance}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── GrowthCalc validation helpers — module-level so no temporal dead zone ────
+// These are pure functions with no dependency on component state.
+// Defined here rather than inside GrowthCalc() to avoid the temporal dead zone
+// that const/let declarations create when referenced before their line executes.
+function clampInt(val, lo, hi) {
+  const n = parseInt(val);
+  if (isNaN(n) || val === "") return "";
+  return String(Math.max(lo, Math.min(hi, n)));
+}
+function clampFloat(val, lo, hi) {
+  const n = parseFloat(val);
+  if (isNaN(n) || val === "") return "";
+  return String(Math.max(lo, Math.min(hi, n)));
+}
+function daysInMonth(m, y) {
+  const mi = parseInt(m), yi = parseInt(y);
+  if (!mi || !yi) return 31;
+  return new Date(yi, mi, 0).getDate(); // day=0 of next month = last day of m
+}
+function isFuture(m, d, y) {
+  const yi = parseInt(y), mi = parseInt(m)-1, di = parseInt(d);
+  if (!yi || isNaN(mi) || !di) return false;
+  return new Date(yi, mi, di) > new Date();
+}
+const currentYear = new Date().getFullYear();
+
 // ─────────────────────────────────────────────────────────────
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────
@@ -5350,11 +6059,15 @@ function GrowthCalc() {
   const [visY, setVisY] = useState(_todayParts[0] || "");
 
   // Assemble ISO date from parts; empty string if incomplete
-  const assembleDate = (m, d, y) => {
+  const assembleDate = (m, d, y, allowFuture=false) => {
     const mm = String(m).padStart(2,"0");
     const dd = String(d).padStart(2,"0");
     const yyyy = String(y);
     if (!m || !d || yyyy.length !== 4) return "";
+    const mi = parseInt(m), di = parseInt(d), yi = parseInt(y);
+    if (mi < 1 || mi > 12) return "";
+    if (di < 1 || di > daysInMonth(m, y)) return "";
+    if (!allowFuture && isFuture(m, d, y)) return "";
     return yyyy + "-" + mm + "-" + dd;
   };
 
@@ -5381,11 +6094,15 @@ function GrowthCalc() {
   const bmi = calcBMI(parseFloat(wtKg), parseFloat(htCm));
 
   // Which metric tabs are available
+  // Length tab: "Height" for children ≥2yr corrected (standing height),
+  // "Length" for infants under 2yr (recumbent measurement).
+  // Same 731.5-day boundary as the BMI/Wt-for-Length and WHO/CDC transitions.
+  const lenLabel = (ages && ages.corrDays >= 731.5) ? "Height" : "Length";
   const metricTabs = [
     {id:"weight", label:"Weight"},
-    {id:"length", label:"Ht/Len"},
+    {id:"length", label:lenLabel},
     {id:"hc", label:"HC"},
-    ...(zone === "who" ? [{id:"wfl", label:"Wt/Len"}] : []),
+    ...(zone === "who" ? [{id:"wfl", label:"Weight-for-Length"}] : []),
     ...(zone === "cdc" ? [{id:"bmi", label:"BMI"}] : []),
   ];
 
@@ -5492,8 +6209,8 @@ function GrowthCalc() {
         <div style={{height:2,background:"#d4a444",borderRadius:1}}/>
         <div style={{position:"absolute",top:"50%",left:"50%",
           transform:"translate(-50%,-50%)",background:C.bg,padding:"0 8px",lineHeight:1}}>
-          <span style={{color:"#d4a444",fontSize:14,fontWeight:700}}>
-            {showCurveOptions ? "∧" : "∨"}
+          <span style={{color:"#d4a444",fontSize:11,fontWeight:700,letterSpacing:"0.03em"}}>
+            {showCurveOptions ? "∧  Close to hide details  ∧" : "∨  Expand to see details  ∨"}
           </span>
         </div>
       </div>
@@ -5583,15 +6300,19 @@ function GrowthCalc() {
             </div>
             <div style={{display:"flex",gap:4}}>
               <div style={{flex:1}}>
-                <input type="number" value={egaWeeks} min={22} max={44}
+                <input type="number" inputMode="numeric" value={egaWeeks} min={22} max={42}
                   onChange={e=>setEgaWeeks(e.target.value)}
-                  style={{...inputStyle,padding:"8px 6px",textAlign:"center"}}
+                  onBlur={e=>setEgaWeeks(clampInt(e.target.value,22,42))}
+                  style={{...inputStyle,padding:"8px 6px",textAlign:"center",
+                    borderColor:(egaWeeks&&(parseInt(egaWeeks)<22||parseInt(egaWeeks)>42))?"#c0392b":undefined}}
                   placeholder="40"/>
               </div>
               <div style={{flex:1}}>
-                <input type="number" value={egaDays_} min={0} max={6}
+                <input type="number" inputMode="numeric" value={egaDays_} min={0} max={6}
                   onChange={e=>setEgaDays_(e.target.value)}
-                  style={{...inputStyle,padding:"8px 6px",textAlign:"center"}}
+                  onBlur={e=>setEgaDays_(clampInt(e.target.value,0,6))}
+                  style={{...inputStyle,padding:"8px 6px",textAlign:"center",
+                    borderColor:(egaDays_&&(parseInt(egaDays_)<0||parseInt(egaDays_)>6))?"#c0392b":undefined}}
                   placeholder="0"/>
               </div>
             </div>
@@ -5607,19 +6328,25 @@ function GrowthCalc() {
               <input type="number" inputMode="numeric" placeholder="MM"
                 value={dobM} min={1} max={12}
                 onChange={e=>setDobM(e.target.value)}
-                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center"}}/>
+                onBlur={e=>setDobM(clampInt(e.target.value,1,12))}
+                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center",
+                  borderColor:(dobM&&(parseInt(dobM)<1||parseInt(dobM)>12))?"#c0392b":undefined}}/>
             </div>
             <div>
               <input type="number" inputMode="numeric" placeholder="DD"
                 value={dobD} min={1} max={31}
                 onChange={e=>setDobD(e.target.value)}
-                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center"}}/>
+                onBlur={e=>setDobD(clampInt(e.target.value,1,daysInMonth(dobM,dobY)))}
+                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center",
+                  borderColor:(dobD&&(parseInt(dobD)<1||parseInt(dobD)>daysInMonth(dobM,dobY)))?"#c0392b":undefined}}/>
             </div>
             <div>
               <input type="number" inputMode="numeric" placeholder="YYYY"
-                value={dobY} min={2000} max={2030}
+                value={dobY} min={1960} max={currentYear}
                 onChange={e=>setDobY(e.target.value)}
-                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center"}}/>
+                onBlur={e=>setDobY(clampInt(e.target.value,1960,currentYear))}
+                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center",
+                  borderColor:(dobY&&(String(dobY).length===4)&&(parseInt(dobY)<1960||parseInt(dobY)>currentYear||isFuture(dobM,dobD,dobY)))?"#c0392b":undefined}}/>
             </div>
           </div>
         </div>
@@ -5632,19 +6359,25 @@ function GrowthCalc() {
               <input type="number" inputMode="numeric" placeholder="MM"
                 value={visM} min={1} max={12}
                 onChange={e=>setVisM(e.target.value)}
-                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center"}}/>
+                onBlur={e=>setVisM(clampInt(e.target.value,1,12))}
+                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center",
+                  borderColor:(visM&&(parseInt(visM)<1||parseInt(visM)>12))?"#c0392b":undefined}}/>
             </div>
             <div>
               <input type="number" inputMode="numeric" placeholder="DD"
                 value={visD} min={1} max={31}
                 onChange={e=>setVisD(e.target.value)}
-                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center"}}/>
+                onBlur={e=>setVisD(clampInt(e.target.value,1,daysInMonth(visM,visY)))}
+                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center",
+                  borderColor:(visD&&(parseInt(visD)<1||parseInt(visD)>daysInMonth(visM,visY)))?"#c0392b":undefined}}/>
             </div>
             <div>
               <input type="number" inputMode="numeric" placeholder="YYYY"
-                value={visY} min={2000} max={2030}
+                value={visY} min={1960} max={currentYear}
                 onChange={e=>setVisY(e.target.value)}
-                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center"}}/>
+                onBlur={e=>setVisY(clampInt(e.target.value,1960,currentYear))}
+                style={{...inputStyle,padding:"8px 4px",fontSize:13,textAlign:"center",
+                  borderColor:(visY&&(String(visY).length===4)&&(parseInt(visY)<1960||parseInt(visY)>currentYear||isFuture(visM,visD,visY)))?"#c0392b":undefined}}/>
             </div>
           </div>
         </div>
@@ -5696,8 +6429,11 @@ function GrowthCalc() {
                 <div>
                   <label style={lblStyle}>Weight <span style={{color:"#b8860b"}}>(kg)</span></label>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <input type="number" inputMode="decimal" value={wtKg} min={0} step={0.01}
-                      onChange={e=>setWtKg(e.target.value)} style={{...inputStyle,flex:1}}
+                    <input type="number" inputMode="decimal" value={wtKg} min={0.3} max={200} step={0.01}
+                      onChange={e=>setWtKg(e.target.value)}
+                      onBlur={e=>setWtKg(clampFloat(e.target.value,0.3,200))}
+                      style={{...inputStyle,flex:1,
+                        borderColor:(wtKg&&(parseFloat(wtKg)<0.3||parseFloat(wtKg)>200))?"#c0392b":undefined}}
                       placeholder="—"/>
                     {statDiv(rWt)}
                   </div>
@@ -5707,8 +6443,11 @@ function GrowthCalc() {
                 <div>
                   <label style={lblStyle}>Ht / Len <span style={{color:"#b8860b"}}>(cm)</span></label>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <input type="number" inputMode="decimal" value={htCm} min={0} step={0.1}
-                      onChange={e=>setHtCm(e.target.value)} style={{...inputStyle,flex:1}}
+                    <input type="number" inputMode="decimal" value={htCm} min={25} max={275} step={0.1}
+                      onChange={e=>setHtCm(e.target.value)}
+                      onBlur={e=>setHtCm(clampFloat(e.target.value,25,275))}
+                      style={{...inputStyle,flex:1,
+                        borderColor:(htCm&&(parseFloat(htCm)<25||parseFloat(htCm)>275))?"#c0392b":undefined}}
                       placeholder="—"/>
                     {statDiv(rLen)}
                   </div>
@@ -5723,8 +6462,11 @@ function GrowthCalc() {
                 <div>
                   <label style={lblStyle}>Head Circ/OFC <span style={{color:"#b8860b"}}>(cm)</span></label>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <input type="number" inputMode="decimal" value={hcCm} min={0} step={0.1}
-                      onChange={e=>setHcCm(e.target.value)} style={{...inputStyle,flex:1}}
+                    <input type="number" inputMode="decimal" value={hcCm} min={16} max={65} step={0.1}
+                      onChange={e=>setHcCm(e.target.value)}
+                      onBlur={e=>setHcCm(clampFloat(e.target.value,16,65))}
+                      style={{...inputStyle,flex:1,
+                        borderColor:(hcCm&&(parseFloat(hcCm)<16||parseFloat(hcCm)>65))?"#c0392b":undefined}}
                       placeholder="—"/>
                     {statDiv(rHC)}
                   </div>
@@ -5763,6 +6505,10 @@ function GrowthCalc() {
               const showPMA = isPrem && ages.pmaWeeks <= 60;
               // Corr Age: only for premature infants, only while corrected age ≤ 731.5 days
               const showCorr = isPrem && ages.corrDays >= 0 && ages.corrDays <= 731.5;
+              // BSA — Mosteller formula: √(ht_cm × wt_kg / 3600)
+              const bsaVal = (wtKg && htCm)
+                ? Math.sqrt(parseFloat(htCm) * parseFloat(wtKg) / 3600)
+                : null;
               const fields = [
                 showPMA
                   ? {label:"PMA", value: fmtWeeks(ages.pmaWeeks, ages.pmaRemDays)}
@@ -5770,6 +6516,9 @@ function GrowthCalc() {
                 {label:"Chron Age", value: fmtAge(ages.chronDays)},
                 showCorr
                   ? {label:"Corr Age", value: fmtAge(ages.corrDays)}
+                  : null,
+                bsaVal
+                  ? {label:"BSA", value: `${bsaVal.toFixed(2)} m²`}
                   : null,
               ].filter(Boolean);
               return fields.map(f => (
@@ -5928,50 +6677,59 @@ function GrowthCalc() {
 
 // REGISTRY OF ALL CALCULATORS
 // ═══════════════════════════════════════════════════════════════════════════════
+// Canonical category sequence: Growth → Neonatal → FEN/Renal → Neurologic →
+//   Respiratory → Cardiovascular → GI → Hematology → Common Rx → Toxicology → Risk Scores
 const CALCULATORS = [
   // Growth
-  { id:"growth",       category:"growth",      name:"Growth Charts",                desc:"Fenton 2025 · WHO 2006 · CDC 2000 auto-routed with prematurity correction", component: GrowthCalc },
+  { id:"growth",       category:"growth",          name:"Growth Charts",                desc:"Fenton 2025 · WHO 2006 · CDC 2000 auto-routed with prematurity correction", component: GrowthCalc },
   // Neonatal
-  { id:"apgar",        category:"neonatal",    name:"APGAR Score",                  desc:"Neonatal vitality assessment at 1, 5, 10 min",            component: ApgarCalc },
-  { id:"bilirubin",    category:"neonatal",    name:"Neonatal Hyperbilirubinemia",  desc:"AAP 2022 phototherapy, escalation & exchange thresholds",              component: BilirubinCalc },
-  { id:"glucose",      category:"neonatal",    name:"Neonatal Hypoglycemia",        desc:"AAP 2011 glucose thresholds by postnatal age",            component: NeonatalGlucoseCalc },
-  { id:"preterm",      category:"neonatal",    name:"Prematurity Risk Assessment",  desc:"Category and anticipated concerns by GA/weight",          component: PretermCalc },
-  { id:"finnegan",     category:"neonatal",    name:"Modified Finnegan NAS",        desc:"Neonatal Abstinence Syndrome scoring",                    component: FinneganCalc },
-  // Neurologic (expanded)
-  { id:"pgcs",         category:"neurologic",  name:"Pediatric Glasgow Coma Scale", desc:"GCS adapted for infants and children",                    component: PGCSCalc },
-  { id:"pecarn",       category:"neurologic",  name:"PECARN Head CT",               desc:"CT rule for pediatric head trauma",                       component: PECARNCalc },
-  { id:"cows",         category:"neurologic",  name:"COWS Score",                   desc:"Clinical Opiate Withdrawal Scale",                        component: COWSCalc },
-  { id:"wat1",         category:"neurologic",  name:"WAT-1",                        desc:"Withdrawal Assessment Tool — iatrogenic opioid/benzo",    component: WATCalc },
-  { id:"flacc",        category:"neurologic",  name:"FLACC Pain Scale",             desc:"Behavioral pain scale for non-verbal children",           component: FLACCCalc },
-  // Toxicology
-  { id:"apap",         category:"toxicology",  name:"Acetaminophen Toxicity",       desc:"Dose assessment + Rumack-Matthew nomogram",               component: AcetaminophenCalc },
+  { id:"apgar",        category:"neonatal",         name:"APGAR Score",                  desc:"Neonatal vitality assessment at 1, 5, 10 min",            component: ApgarCalc },
+  { id:"bilirubin",    category:"neonatal",         name:"Neonatal Hyperbilirubinemia",  desc:"AAP 2022 phototherapy, escalation & exchange thresholds", component: BilirubinCalc },
+  { id:"glucose",      category:"neonatal",         name:"Neonatal Hypoglycemia",        desc:"AAP 2011 glucose thresholds by postnatal age",            component: NeonatalGlucoseCalc },
+  { id:"preterm",      category:"neonatal",         name:"Prematurity Risk Assessment",  desc:"Category and anticipated concerns by GA/weight",          component: PretermCalc },
+  { id:"finnegan",     category:"neonatal",         name:"Modified Finnegan NAS",        desc:"Neonatal Abstinence Syndrome scoring",                    component: FinneganCalc },
+  // FEN / Renal
+  { id:"fluid",        category:"fen_renal",        name:"Maintenance Fluids",           desc:"Holliday-Segar + 4:2:1 · fluid, Na, K, GIR",             component: FluidCalc },
+  { id:"burns",        category:"fen_renal",        name:"Burn Fluid Resuscitation",     desc:"Parkland formula for pediatric burns",                    component: BurnsCalc },
+  { id:"dehydration",  category:"fen_renal",        name:"Dehydration Score",            desc:"Clinical dehydration assessment (WHO/Gorelick)",          component: DehydrationCalc },
+  { id:"sodium",       category:"fen_renal",        name:"Hyponatremia Correction",      desc:"Sodium deficit and correction rate calculation",          component: SodiumCalc },
+  { id:"freewater",    category:"fen_renal",        name:"Free Water Deficit",           desc:"Hypernatremia correction — free water replacement volume", component: FreeWaterDeficitCalc },
+  { id:"fena",         category:"fen_renal",        name:"FENa / FEUrea",                desc:"Prerenal vs intrinsic AKI — fractional excretion",        component: FENaCalc },
+  { id:"u25gfr",       category:"fen_renal",        name:"U25 eGFR",                     desc:"Cystatin-C and SCr-based GFR for age ≤25 years",         component: U25GFRCalc },
+  { id:"corrca",       category:"fen_renal",        name:"Corrected Calcium",            desc:"Calcium correction for hypoalbuminemia",                  component: CorrCaCalc },
+  { id:"osmolalgap",   category:"fen_renal",        name:"Osmolal Gap",                  desc:"Measured vs calculated osmolality — toxin screen",         component: OsmolalGapCalc },
+  // Neurologic
+  { id:"pgcs",         category:"neurologic",       name:"Pediatric Glasgow Coma Scale", desc:"GCS adapted for infants and children",                    component: PGCSCalc },
+  { id:"pecarn",       category:"neurologic",       name:"PECARN Head CT",               desc:"CT rule for pediatric head trauma",                       component: PECARNCalc },
+  { id:"cows",         category:"neurologic",       name:"COWS Score",                   desc:"Clinical Opiate Withdrawal Scale",                        component: COWSCalc },
+  { id:"wat1",         category:"neurologic",       name:"WAT-1",                        desc:"Withdrawal Assessment Tool — iatrogenic opioid/benzo",    component: WATCalc },
+  { id:"flacc",        category:"neurologic",       name:"FLACC Pain Scale",             desc:"Behavioral pain scale for non-verbal children",           component: FLACCCalc },
   // Respiratory
-  { id:"bronchiolitis",category:"respiratory", name:"Bronchiolitis Severity",       desc:"Respiratory severity scoring for bronchiolitis",          component: BronchiolitisCalc },
-  { id:"asthma",       category:"respiratory", name:"Asthma Severity (PRAM)",       desc:"Pediatric Respiratory Assessment Measure",               component: AsthmaCalc },
-  // FEN (Fluids, Electrolytes & Nutrition)
-  { id:"fluid",        category:"fluid",       name:"Maintenance Fluids",           desc:"Holliday-Segar + 4:2:1 · fluid, Na, K, GIR",             component: FluidCalc },
-  { id:"burns",        category:"fluid",       name:"Burn Fluid Resuscitation",     desc:"Parkland formula for pediatric burns",                    component: BurnsCalc },
-  { id:"dehydration",  category:"fluid",       name:"Dehydration Score",            desc:"Clinical dehydration assessment (WHO/Gorelick)",          component: DehydrationCalc },
-  { id:"sodium",       category:"fluid",       name:"Hyponatremia Correction",      desc:"Sodium deficit and correction rate calculation",          component: SodiumCalc },
-  { id:"freewater",    category:"fluid",       name:"Free Water Deficit",           desc:"Hypernatremia correction — free water replacement volume", component: FreeWaterDeficitCalc },
-  { id:"fena",         category:"fluid",       name:"FENa / FEUrea",                desc:"Prerenal vs intrinsic AKI — fractional excretion",         component: FENaCalc },
+  { id:"bronchiolitis",category:"respiratory",      name:"Bronchiolitis Severity",       desc:"Respiratory severity scoring for bronchiolitis",          component: BronchiolitisCalc },
+  { id:"asthma",       category:"respiratory",      name:"Asthma Severity (PRAM)",       desc:"Pediatric Respiratory Assessment Measure",               component: AsthmaCalc },
+  { id:"pfRatio",      category:"respiratory",      name:"P/F and S/F Ratio",            desc:"Oxygenation indices — ARDS classification and monitoring",component: PFRatioCalc },
+  { id:"aaGradient",   category:"respiratory",      name:"A-a Gradient / OI",            desc:"Alveolar-arterial gradient and oxygenation index",         component: AAGradientCalc },
+  { id:"murray",       category:"respiratory",      name:"Murray Lung Injury Score",      desc:"Four-component ARDS severity — chest X-ray, P/F, PEEP, compliance", component: MurrayCalc },
+  { id:"berlin",       category:"respiratory",      name:"Berlin ARDS Definition",        desc:"2012 Berlin ARDS criteria — mild, moderate, severe",       component: BerlinARDSCalc },
+  // Cardiovascular
+  { id:"kawasaki",     category:"cardiovascular",   name:"Kawasaki Disease Criteria",    desc:"AHA 2017 diagnostic criteria",                           component: KawasakiCalc },
+  { id:"dvt",          category:"cardiovascular",   name:"Wells DVT Score",              desc:"DVT probability in children (adapted Wells)",             component: DVTCalc },
+  { id:"qtc",          category:"cardiovascular",   name:"Corrected QT (Bazett)",        desc:"QTc calculation and risk assessment",                     component: QTcCalc },
+  // Gastroenterology
+  { id:"pucai",        category:"gastroenterology", name:"PUCAI Score",                  desc:"Pediatric Ulcerative Colitis Activity Index — disease activity",  component: PUCAICalc },
   // Hematology
-  { id:"retic",        category:"hematology",  name:"Corrected Reticulocyte Count", desc:"Corrected retic count & RPI — erythroid response adequacy", component: ReticCalc },
-  { id:"mentzer",      category:"hematology",  name:"Mentzer Index",                desc:"Iron deficiency vs thalassemia trait — MCV ÷ RBC",         component: MentzerCalc },
-  { id:"u25gfr",       category:"fluid",       name:"U25 eGFR",                     desc:"Cystatin-C and SCr-based GFR for age ≤25 years",         component: U25GFRCalc },
+  { id:"retic",        category:"hematology",       name:"Corrected Reticulocyte Count", desc:"Corrected retic count & RPI — erythroid response adequacy", component: ReticCalc },
+  { id:"mentzer",      category:"hematology",       name:"Mentzer Index",                desc:"Iron deficiency vs thalassemia trait — MCV ÷ RBC",         component: MentzerCalc },
   // Common Rx
-  { id:"dose",         category:"dosing",      name:"Common Drug Doses",            desc:"Weight-based pediatric dosing reference",                 component: DoseCalc },
-  // Cardiac
-  { id:"kawasaki",     category:"cardiac",     name:"Kawasaki Disease Criteria",    desc:"AHA 2017 diagnostic criteria",                           component: KawasakiCalc },
-  { id:"dvt",          category:"cardiac",     name:"Wells DVT Score",              desc:"DVT probability in children (adapted Wells)",             component: DVTCalc },
-  { id:"qtc",          category:"cardiac",     name:"Corrected QT (Bazett)",        desc:"QTc calculation and risk assessment",                     component: QTcCalc },
+  { id:"dose",         category:"dosing",           name:"Common Drug Doses",            desc:"Weight-based pediatric dosing reference",                 component: DoseCalc },
+  // Toxicology
+  { id:"apap",         category:"toxicology",       name:"Acetaminophen Toxicity",       desc:"Dose assessment + Rumack-Matthew nomogram",               component: AcetaminophenCalc },
   // Risk Scores
-  { id:"sepsis",       category:"readmission", name:"Pediatric SIRS/Sepsis",        desc:"Age-adjusted SIRS criteria and sepsis screening",         component: SepsisCalc },
-  { id:"natfrac",      category:"readmission", name:"NAT Fracture Risk",            desc:"Non-accidental trauma fracture indicators",               component: ChildAbuseFracCalc },
-  { id:"readmission",  category:"readmission", name:"Pediatric Readmission Risk",   desc:"30-day readmission risk estimation",                      component: ReadmissionCalc },
-  { id:"pews",         category:"readmission", name:"PEWS",                         desc:"Pediatric Early Warning Score",                           component: PEWSCalc },
+  { id:"sepsis",       category:"readmission",      name:"Pediatric SIRS/Sepsis",        desc:"Age-adjusted SIRS criteria and sepsis screening",         component: SepsisCalc },
+  { id:"natfrac",      category:"readmission",      name:"NAT Fracture Risk",            desc:"Non-accidental trauma fracture indicators",               component: ChildAbuseFracCalc },
+  { id:"readmission",  category:"readmission",      name:"Pediatric Readmission Risk",   desc:"30-day readmission risk estimation",                      component: ReadmissionCalc },
+  { id:"pews",         category:"readmission",      name:"PEWS",                         desc:"Pediatric Early Warning Score",                           component: PEWSCalc },
 ];
-
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 function FluidErrorChart() {
   const W = 320, H = 220;
@@ -6341,7 +7099,7 @@ export default function App() {
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, padding: "8px 16px 20px", background: `linear-gradient(transparent, ${COLORS.bg} 40%)`, pointerEvents: "none" }}>
         <div style={{ pointerEvents: "auto", display: "flex", justifyContent: "center" }}>
           <div style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 2, padding: "5px 12px", fontSize: 9, fontFamily: "'IBM Plex Mono', monospace", color: COLORS.textMuted, fontWeight: 500, textAlign: "center" }}>
-            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v23
+            ⚠ Clinical decision support only · Verify with judgment and current guidelines · v24
           </div>
         </div>
       </div>

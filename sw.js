@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pedicalc-v24'; // v23 → v24: 8 new calculators (Corrected Ca, Osmolal Gap, P/F + S/F, A-a Gradient + OI, Murray, Berlin ARDS, PUCAI); category reorg + GI category; BSA Mosteller; field validation; label/unit polish
+const CACHE_NAME = 'pedicalc-v25'; // v25: pin @babel/standalone@7.29.7 (Babel 8 broke unpinned CDN) | v24: 8 new calculators (Corrected Ca, Osmolal Gap, P/F + S/F, A-a Gradient + OI, Murray, Berlin ARDS, PUCAI); category reorg + GI category; BSA Mosteller; field validation; label/unit polish
 const urlsToCache = [
   './',
   './index.html',
